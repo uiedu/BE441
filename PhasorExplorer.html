@@ -1,0 +1,288 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Instrumentation and Controls: Phasor Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+/* Layout: lab-bench panel — header, two linked plots side by side (stacked on phones), control strip below */
+:root {
+  --bg: #f6f7f5;
+  --panel: #ffffff;
+  --fg: #1d2429;
+  --muted: #5f6b73;
+  --grid: #e3e7e6;
+  --axis: #9aa5ab;
+  --ref: #b3bcc1;
+  --trace: #1f5fbf;
+  --cursor: #d2432f;
+  --angle: #a23a9c;
+  --cc: #0f8a7e;
+  --ss: #8a3fb8;
+  --line: #d9dedd;
+  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171b; --panel: #192026; --fg: #e4e9ec; --muted: #9aa7af;
+    --grid: #26303799; --axis: #5d6a72; --ref: #56636b; --trace: #6aa6ff;
+    --cursor: #ff7a66; --angle: #e07ad9; --line: #2b353c; --cc: #45d0c0; --ss: #c58af0; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --cc: #45d0c0; --ss: #c58af0;
+  --bg: #12171b; --panel: #192026; --fg: #e4e9ec; --muted: #9aa7af;
+  --grid: #26303799; --axis: #5d6a72; --ref: #56636b; --trace: #6aa6ff;
+  --cursor: #ff7a66; --angle: #e07ad9; --line: #2b353c; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--f-body); font-size: 15px; line-height: 1.5;
+}
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 32px; display: grid; gap: 20px; }
+header { display: grid; gap: 4px; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: 1.6rem; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.eq { font-family: var(--f-mono); font-size: 0.95rem; color: var(--muted); margin: 0; }
+.eq b { color: var(--trace); font-weight: 500; }
+
+.plots { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 760px) { .plots { grid-template-columns: minmax(0, 1fr); } }
+figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 12px 8px; min-width: 0; display: grid; gap: 6px; }
+figcaption { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.label { font-family: var(--f-display); font-weight: 500; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.read { font-family: var(--f-mono); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+svg { width: 100%; height: auto; display: block; }
+svg text { font-family: var(--f-mono); font-size: 12px; fill: var(--muted); }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.axis { stroke: var(--axis); stroke-width: 1.2; }
+.ref { stroke: var(--ref); stroke-width: 1.6; stroke-dasharray: 6 5; fill: none; }
+.trace { stroke: var(--trace); stroke-width: 2.6; fill: none; }
+.proj { stroke: var(--cursor); stroke-width: 1.3; stroke-dasharray: 4 4; }
+.dot { fill: var(--cursor); }
+.comp-c { stroke: var(--cc); stroke-width: 1.6; stroke-dasharray: 5 4; fill: none; }
+.comp-s { stroke: var(--ss); stroke-width: 1.6; stroke-dasharray: 5 4; fill: none; }
+.seg-c { stroke: var(--cc); stroke-width: 5; stroke-linecap: round; }
+.seg-s { stroke: var(--ss); stroke-width: 5; stroke-linecap: round; }
+.guide { stroke: var(--axis); stroke-width: 1; stroke-dasharray: 3 4; }
+.t-c { fill: var(--cc); font-weight: 500; } .t-s { fill: var(--ss); font-weight: 500; }
+.cc { color: var(--cc); } .ss { color: var(--ss); }
+.arc { stroke: var(--angle); stroke-width: 1.8; fill: none; }
+.circle { stroke: var(--axis); stroke-width: 1; stroke-dasharray: 2 4; fill: none; }
+.head-trace { fill: var(--trace); }
+.head-ref { fill: var(--ref); }
+.angle-text { fill: var(--angle); font-weight: 500; }
+
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 22px; height: 0; border-top: 2.6px solid var(--trace); }
+.sw.ref { border-top: 2px dashed var(--ref); }
+.sw.c { border-top: 2px dashed var(--cc); }
+.sw.s { border-top: 2px dashed var(--ss); }
+.sw.cs { border-top: 5px solid var(--cc); }
+.sw.ss2 { border-top: 5px solid var(--ss); }
+.sw.dotk { width: 9px; height: 9px; border: 0; border-radius: 50%; background: var(--cursor); }
+
+.controls { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 14px; }
+.main-ctl { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.main-ctl label { font-family: var(--f-display); font-weight: 700; font-size: 1rem; }
+.phi-val { font-family: var(--f-mono); font-size: 1.35rem; font-weight: 500; color: var(--trace); min-width: 5.5ch; text-align: right; font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--trace); }
+input:focus-visible { outline: 2px solid var(--trace); outline-offset: 2px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 0; }
+.stats div { display: grid; gap: 2px; }
+.stats dt { font-size: 0.85rem; color: var(--muted); }
+.stats dd { margin: 0; font-family: var(--f-mono); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.note { font-size: 0.88rem; color: var(--muted); max-width: 70ch; margin: 0; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Instrumentation and Controls: Phasor Explorer</h1>
+    <p class="eq" id="eqText"></p>
+    <p class="eq"><span class="cc">1 ⟷ cos ωt</span>, &nbsp;<span class="ss">j ⟷ sin ωt</span>, &nbsp;so &nbsp;V = a + jb &nbsp;⟷&nbsp; v(t) = a·cos ωt + b·sin ωt</p>
+  </header>
+
+  <div class="plots">
+    <figure>
+      <figcaption>
+        <span class="label">Time domain</span>
+        <span class="read" id="sineRead"></span>
+      </figcaption>
+      <svg id="sine" viewBox="0 0 640 360" role="img" aria-label="Wave v(t), its cosine and sine components, and the cos ωt reference over two periods"></svg>
+      <div class="legend">
+        <span><i class="sw ref"></i>Reference cos ωt (φ = 0°)</span>
+        <span><i class="sw c"></i>a·cos ωt</span>
+        <span><i class="sw s"></i>b·sin ωt</span>
+        <span><i class="sw"></i>v(t) = sum</span>
+        <span><i class="sw dotk"></i>v(0) = a</span>
+      </div>
+    </figure>
+    <figure>
+      <figcaption>
+        <span class="label">Phasor</span>
+        <span class="read" id="phRead"></span>
+      </figcaption>
+      <svg id="phasor" viewBox="0 0 360 360" role="img" aria-label="Phasor diagram on the complex plane"></svg>
+      <div class="legend">
+        <span><i class="sw"></i>V = 1∠φ</span>
+        <span><i class="sw cs"></i>a (cos part)</span>
+        <span><i class="sw ss2"></i>b (sin part)</span>
+      </div>
+    </figure>
+  </div>
+
+  <section class="controls" aria-label="Controls">
+    <div class="main-ctl">
+      <label for="phi">Phase angle φ</label>
+      <input type="range" id="phi" min="-180" max="180" step="1" value="0">
+      <span class="phi-val" id="phiVal">0°</span>
+    </div>
+    <dl class="stats">
+      <div><dt>Rectangular form a + jb</dt><dd id="rect"></dd></div>
+      <div><dt>Components</dt><dd id="comp"></dd></div>
+      <div><dt>Relative to cos ωt</dt><dd id="rel"></dd></div>
+      <div><dt>Peak shift Δt = φ/ω</dt><dd id="shift"></dd></div>
+    </dl>
+    <p class="note">V<sub>m</sub> = 1 and f = 1 Hz. The real part a of the phasor scales cos ωt and the imaginary part b scales sin ωt, so V = 1∠φ gives v(t) = cos φ·cos ωt + sin φ·sin ωt = cos(ωt − φ). With this mapping a counter-clockwise angle φ delays the wave: φ = 90° (V = j) is sin ωt, which peaks a quarter period after cos ωt. The red dot marks v(0) = a, the phasor's projection on the real axis.</p>
+  </section>
+</div>
+
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const Vm = 1, f = 1, w = 2 * Math.PI * f, T = 1 / f;   // fixed amplitude and frequency
+  const YMAX = 1.3;                                      // plot range
+  const $ = id => document.getElementById(id);
+  const el = (parent, tag, attrs = {}, text) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (text != null) n.textContent = text;
+    parent.appendChild(n);
+    return n;
+  };
+  const fmt = (x, d = 2) => (Math.abs(x) < 5e-10 ? 0 : x).toFixed(d);
+  const LEVELS = [-1, -0.5, 0, 0.5, 1];
+
+  // ---------- Sine plot scaffold ----------
+  const S = { W: 640, H: 360, l: 52, r: 16, t: 16, b: 40 };
+  const span = 2 * T;
+  const sine = $("sine");
+  const sx = t => S.l + t / span * (S.W - S.l - S.r);
+  const sy = v => S.t + (YMAX - v) / (2 * YMAX) * (S.H - S.t - S.b);
+  for (const v of LEVELS) {
+    el(sine, "line", { class: v === 0 ? "axis" : "gridline", x1: S.l, x2: S.W - S.r, y1: sy(v), y2: sy(v) });
+    el(sine, "text", { x: S.l - 8, y: sy(v) + 4, "text-anchor": "end" }, String(v));
+  }
+  for (let i = 0; i <= 8; i++) {
+    const t = i * span / 8;
+    el(sine, "line", { class: i === 0 ? "axis" : "gridline", x1: sx(t), x2: sx(t), y1: S.t, y2: S.H - S.b });
+    el(sine, "text", { x: sx(t), y: S.H - S.b + 18, "text-anchor": "middle" }, String(+t.toFixed(3)));
+  }
+  el(sine, "text", { x: (S.l + S.W - S.r) / 2, y: S.H - 4, "text-anchor": "middle" }, "time (s)");
+  el(sine, "text", { x: 14, y: sy(0), "text-anchor": "middle", transform: `rotate(-90 14 ${sy(0)})` }, "v(t)");
+  const wave = fn => {
+    let d = "";
+    for (let i = 0; i <= 400; i++) {
+      const t = i / 400 * span;
+      d += (i ? "L" : "M") + sx(t).toFixed(2) + "," + sy(fn(t)).toFixed(2);
+    }
+    return d;
+  };
+  el(sine, "path", { class: "ref", d: wave(t => Math.cos(w * t)) });
+  const compC = el(sine, "path", { class: "comp-c" });
+  const compS = el(sine, "path", { class: "comp-s" });
+  const tracePath = el(sine, "path", { class: "trace" });
+  const sineProj = el(sine, "line", { class: "proj" });
+  const sineDot = el(sine, "circle", { class: "dot", r: 5.5, cx: sx(0) });
+
+  // ---------- Phasor scaffold ----------
+  const P = { c: 180, R: 150 };
+  const ph = $("phasor");
+  const px = v => P.c + v / YMAX * P.R;
+  const py = v => P.c - v / YMAX * P.R;
+  const defs = el(ph, "defs");
+  const mk = (id, cls) => {
+    const m = el(defs, "marker", { id, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+    el(m, "path", { d: "M0,0 L10,5 L0,10 z", class: cls });
+  };
+  mk("hTrace", "head-trace"); mk("hRef", "head-ref");
+  for (const v of LEVELS) {
+    if (v === 0) continue;
+    el(ph, "line", { class: "gridline", x1: px(v), x2: px(v), y1: 8, y2: 352 });
+    el(ph, "line", { class: "gridline", y1: py(v), y2: py(v), x1: 8, x2: 352 });
+  }
+  el(ph, "line", { class: "axis", x1: 8, x2: 352, y1: P.c, y2: P.c });
+  el(ph, "line", { class: "axis", y1: 8, y2: 352, x1: P.c, x2: P.c });
+  el(ph, "text", { x: 348, y: P.c - 6, "text-anchor": "end", class: "t-c" }, "1 ↔ cos ωt");
+  el(ph, "text", { x: P.c + 6, y: 20, class: "t-s" }, "j ↔ sin ωt");
+  el(ph, "text", { x: px(1) + 4, y: P.c + 16 }, "1");
+  el(ph, "text", { x: P.c + 6, y: py(1) - 6 }, "j1");
+  el(ph, "circle", { class: "circle", cx: P.c, cy: P.c, r: Vm / YMAX * P.R });
+  el(ph, "line", { class: "ref", "marker-end": "url(#hRef)", x1: P.c, y1: P.c, x2: px(Vm), y2: P.c });
+  const arc = el(ph, "path", { class: "arc" });
+  const arcLbl = el(ph, "text", { class: "angle-text", "text-anchor": "middle" });
+  const gV = el(ph, "line", { class: "guide" });
+  const gH = el(ph, "line", { class: "guide" });
+  const segC = el(ph, "line", { class: "seg-c" });
+  const segS = el(ph, "line", { class: "seg-s" });
+  const vec = el(ph, "line", { class: "trace", "stroke-width": 3, "marker-end": "url(#hTrace)", x1: P.c, y1: P.c });
+  const tipDot = el(ph, "circle", { class: "dot", r: 5, cy: P.c });
+
+  const slider = $("phi");
+
+  function draw() {
+    const phiDeg = +slider.value, phi = phiDeg * Math.PI / 180;
+    const re = Vm * Math.cos(phi), im = Vm * Math.sin(phi);
+
+    // v(t) = a cos ωt + b sin ωt
+    compC.setAttribute("d", wave(t => re * Math.cos(w * t)));
+    compS.setAttribute("d", wave(t => im * Math.sin(w * t)));
+    tracePath.setAttribute("d", wave(t => re * Math.cos(w * t) + im * Math.sin(w * t)));
+    sineDot.setAttribute("cy", sy(re));
+    sineProj.setAttribute("x1", S.l); sineProj.setAttribute("x2", S.l);
+    sineProj.setAttribute("y1", sy(re)); sineProj.setAttribute("y2", sy(re));
+
+    // phasor and its two projections
+    vec.setAttribute("x2", px(re)); vec.setAttribute("y2", py(im));
+    for (const [n, x1, y1, x2, y2] of [[gV, px(re), py(im), px(re), P.c], [gH, px(re), py(im), P.c, py(im)],
+                                       [segC, P.c, P.c, px(re), P.c], [segS, P.c, P.c, P.c, py(im)]]) {
+      n.setAttribute("x1", x1); n.setAttribute("y1", y1); n.setAttribute("x2", x2); n.setAttribute("y2", y2);
+    }
+    tipDot.setAttribute("cx", px(re));
+
+    // angle arc
+    const rA = 40;
+    let dA = "";
+    for (let i = 0; i <= 48; i++) {
+      const a = phi * i / 48;
+      dA += (i ? "L" : "M") + (P.c + rA * Math.cos(a)).toFixed(2) + "," + (P.c - rA * Math.sin(a)).toFixed(2);
+    }
+    arc.setAttribute("d", phiDeg === 0 ? "" : dA);
+    const rl = rA + 14;
+    arcLbl.setAttribute("x", P.c + rl * Math.cos(phi / 2));
+    arcLbl.setAttribute("y", P.c - rl * Math.sin(phi / 2) + 4);
+    arcLbl.textContent = phiDeg === 0 ? "" : "φ";
+
+    // readouts
+    const sgn = phiDeg >= 0 ? "−" : "+";
+    const sgnB = im < -5e-10 ? "−" : "+";
+    $("phiVal").textContent = (phiDeg > 0 ? "+" : phiDeg < 0 ? "−" : "") + Math.abs(phiDeg) + "°";
+    $("eqText").innerHTML =
+      `<b>V = 1 ∠ ${phiDeg}°</b> &nbsp;⟷&nbsp; v(t) = cos(2πt ${sgn} ${Math.abs(phiDeg)}°)`;
+    $("sineRead").textContent = `v(0) = a = ${fmt(re)}`;
+    $("phRead").textContent = `${fmt(re)} ${sgnB} j${fmt(Math.abs(im))}`;
+    $("rect").textContent = `${fmt(re)} ${sgnB} j${fmt(Math.abs(im))}`;
+    $("comp").textContent = `${fmt(re)} cos ωt ${sgnB} ${fmt(Math.abs(im))} sin ωt`;
+    const named = { 0: " (= cos ωt)", 90: " (= sin ωt)", "-90": " (= −sin ωt)", 180: " (= −cos ωt)", "-180": " (= −cos ωt)" }[phiDeg] || "";
+    $("rel").textContent = (phiDeg > 0 ? `Lags by ${phiDeg}°` : phiDeg < 0 ? `Leads by ${-phiDeg}°` : "In phase") + named;
+    const dt = phi / w * 1000;
+    $("shift").textContent = `${fmt(Math.abs(dt), 1)} ms ${phiDeg > 0 ? "later" : phiDeg < 0 ? "earlier" : ""}`.trim();
+  }
+
+  slider.addEventListener("input", draw);
+  draw();
+})();
+</script>
+
+</body></html>
