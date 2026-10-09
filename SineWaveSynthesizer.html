@@ -1,0 +1,674 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Sine Wave Synthesizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: instrument bench — control rack on the left, stacked scope traces on the right; one column on phones */
+:root{
+  --bg:#eaeef2; --panel:#ffffff; --ink:#152030; --muted:#5a6779; --grid:#e1e6ec; --rule:#cbd4de;
+  --accent:#1d5bd0; --chip:#f2f5f8;
+  --c1:#d0434f; --c2:#14876b; --c3:#d98a07; --c4:#3561a8; --c5:#8a3fb0; --c6:#1a9aa8; --c7:#a85a1e; --c8:#c21c6b;
+  --display:"Sora", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f141b; --panel:#161d27; --ink:#e4ebf3; --muted:#93a0b2; --grid:#212b38; --rule:#2e3a4a;
+  --accent:#78a6ff; --chip:#1d2632;
+  --c1:#ff6b76; --c2:#3ccf9f; --c3:#ffb43d; --c4:#7aa3ff; --c5:#c38cff; --c6:#4fd3e0; --c7:#e29a5c; --c8:#ff6fae;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0f141b; --panel:#161d27; --ink:#e4ebf3; --muted:#93a0b2; --grid:#212b38; --rule:#2e3a4a;
+  --accent:#78a6ff; --chip:#1d2632;
+  --c1:#ff6b76; --c2:#3ccf9f; --c3:#ffb43d; --c4:#7aa3ff; --c5:#c38cff; --c6:#4fd3e0; --c7:#e29a5c; --c8:#ff6fae;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:1320px;margin:0 auto;padding-inline:clamp(16px,3vw,32px);padding-block:28px 48px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 32px;margin-bottom:20px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(1.6rem,3.2vw,2.3rem);letter-spacing:-0.02em;margin:0;line-height:1.1;text-wrap:balance}
+.lede{margin:8px 0 0;color:var(--muted);max-width:75ch}
+.lede ul{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:4px}
+.lede li::marker{color:var(--accent)}
+.kicker{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:600;margin:0 0 4px}
+.sound{display:flex;flex-direction:column;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--rule)}
+[hidden]{display:none!important}
+.sound .btn{align-self:flex-start;font-size:.9rem;padding:6px 14px}
+.eq{font-family:var(--mono);font-size:.95rem;background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:10px 14px;max-width:100%;overflow-x:auto;white-space:nowrap}
+.eq b{font-weight:500;color:var(--accent)}
+.grid{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:920px){.grid{grid-template-columns:minmax(0,1fr)}}
+.rack{display:flex;flex-direction:column;gap:16px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:920px){.rack{position:static}}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:16px}
+.label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin:0 0 10px}
+h2{font-family:var(--display);font-size:1rem;font-weight:600;margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:.85rem;border:1px solid var(--rule);background:var(--chip);color:var(--ink);border-radius:999px;padding:5px 12px;cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.note{font-size:.88rem;color:var(--muted);margin:12px 0 0}
+.sl{display:grid;grid-template-columns:5.2rem minmax(0,1fr) 4.6rem;align-items:center;gap:10px;font-size:.86rem}
+.sl + .sl{margin-top:6px}
+.sl label{color:var(--muted)}
+.sl output{font-family:var(--mono);font-size:.8rem;text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+.hp{margin-top:14px}
+.list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.btns{display:flex;gap:6px;flex-wrap:wrap}
+.btn{font:inherit;font-size:.82rem;border:1px solid var(--rule);background:var(--chip);color:var(--ink);border-radius:6px;padding:4px 10px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+.list{display:flex;flex-direction:column;gap:8px;max-height:min(56vh,620px);overflow-y:auto;padding-right:4px}
+@media (max-width:920px){.list{max-height:none}}
+.comp{border:1px solid var(--rule);border-left:4px solid var(--cc);border-radius:6px;padding:8px 10px}
+.comp.off{opacity:.55}
+.comp-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:.86rem}
+.comp-head input{accent-color:var(--cc);margin:0}
+.comp-head .name{font-weight:600;color:var(--cc)}
+.comp-head .x{margin-left:auto;font:inherit;border:0;background:none;color:var(--muted);cursor:pointer;font-size:1.1rem;line-height:1;padding:2px 6px;border-radius:4px}
+.comp-head .x:hover{color:var(--c1)}
+.comp .sl{grid-template-columns:1.6rem minmax(0,1fr) 4.4rem}
+.scopes{display:flex;flex-direction:column;gap:16px;min-width:0}
+.scope-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 16px;margin-bottom:8px}
+.scope-head p{margin:0;color:var(--muted);font-size:.86rem;max-width:70ch}
+canvas{display:block;width:100%;max-width:100%}
+#cv-phasor{height:340px}
+#cv-spec{height:260px}
+.transport{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px}
+.transport .sl{flex:1 1 220px;grid-template-columns:4.2rem minmax(0,1fr) 3.6rem}
+.check{display:flex;align-items:center;gap:6px;font-size:.86rem;color:var(--muted)}
+.check input{accent-color:var(--accent);margin:0}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:4px}
+.notes div{font-size:.88rem;color:var(--muted)}
+.notes strong{display:block;color:var(--ink);font-family:var(--display);font-weight:600;font-size:.92rem;margin-bottom:2px}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <p class="kicker">Instrumentation & Controls: Fourier Spectrum Analyzer</p>
+      <h1 id="hd">Sine Wave Synthesizer</h1>
+      <div class="lede" id="lede" aria-live="polite"></div>
+    </div>
+  </header>
+
+  <div class="eq" id="eq" aria-live="polite"></div>
+
+  <div class="grid" style="margin-top:16px">
+    <aside class="rack">
+      <section class="card">
+        <p class="label">Start from a signal</p>
+        <div class="chips" id="presets"></div>
+        <div class="hp" id="harm-ctrls">
+          <div class="sl"><label for="in-n" id="lbl-n">Harmonics</label><input type="range" id="in-n" min="1" max="21" step="1" value="5"><output id="out-n">5</output></div>
+          <div class="sl" id="row-f0"><label for="in-f0">Fundamental</label><input type="range" id="in-f0" min="0.5" max="3" step="0.1" value="1"><output id="out-f0">1.0 Hz</output></div>
+        </div>
+        <p class="note" id="preset-note"></p>
+        <div class="sound" id="sound" hidden>
+          <div class="btns">
+            <button class="btn primary" id="btn-snd" type="button">Play sine sum</button>
+            <button class="btn" id="btn-orig" type="button">Play original recording</button>
+          </div>
+          <label class="check"><input type="checkbox" id="in-shift"> Shift sines up 100 Hz for small speakers</label>
+          <p class="note" id="snd-msg" style="margin:0">Each plays 8 s. Compare them, then lower the Sines slider or untick sines and listen again. The sounds sit at 50–100 Hz, so headphones help; the shift keeps the 1.92 Hz spacing, so the rhythm stays at 115 bpm.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="list-head">
+          <h2>Components <span id="count" style="color:var(--muted);font-weight:500"></span></h2>
+          <div class="btns">
+            <button class="btn" id="btn-phase" type="button">Scramble phases</button>
+            <button class="btn primary" id="btn-add" type="button">Add sine</button>
+          </div>
+        </div>
+        <div class="list" id="list"></div>
+      </section>
+    </aside>
+
+    <main class="scopes">
+      <section class="card">
+        <div class="transport">
+          <button class="btn primary" id="btn-play" type="button" style="min-width:5.5rem">Pause</button>
+          <div class="sl"><label for="in-speed">Speed</label><input type="range" id="in-speed" min="0.005" max="1" step="0.005" value="0.25"><output id="out-speed">0.25×</output></div>
+          <div class="sl"><label for="in-win">Window</label><input type="range" id="in-win" min="0" max="1000" step="1" value="700"><output id="out-win">2.0 s</output></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="scope-head">
+          <h2>Phasors → sum x(t)</h2>
+          <p>Each sine is a rotating arrow of length A, spinning at f turns per second, starting at angle φ. Chained tip to tail, the height of the last tip is the sum of all enabled sines, traced on the left.</p>
+        </div>
+        <canvas id="cv-phasor" aria-label="Rotating phasor chain and the resulting time signal"></canvas>
+      </section>
+
+      <section class="card">
+        <div class="scope-head">
+          <h2>Individual sine waves</h2>
+          <p>A·sin(2πft + φ) for each component, drawn on the same amplitude scale.</p>
+        </div>
+        <canvas id="cv-parts" aria-label="Each sine component in its own lane"></canvas>
+      </section>
+
+
+      <section class="card">
+        <div class="scope-head">
+          <h2>Spectrum</h2>
+          <p>The same signal in the frequency domain: one line per sine, its height the amplitude and, below, its phase.</p>
+        </div>
+        <canvas id="cv-spec" aria-label="Amplitude and phase spectrum"></canvas>
+      </section>
+
+      <section class="card">
+        <p class="label">Things to try</p>
+        <div class="notes">
+          <div><strong>Gibbs overshoot</strong>Pick Square and push Harmonics to 21. The corners sharpen, but the overshoot at each edge stays near 9%.</div>
+          <div><strong>Phase matters</strong>Press Scramble phases on a square wave. The amplitude spectrum is unchanged, yet the waveform looks nothing like a square.</div>
+          <div><strong>Beats</strong>Two sines 0.5 Hz apart swell and fade every 2 s. Slide one frequency to change the beat rate.</div>
+          <div><strong>Brain rhythms</strong>Pick EEG α alpha. Its sines sit within about 1 Hz of each other, so the trace pulses in bursts. Shaded bands on the spectrum mark δ, θ, α, β and γ.</div>
+          <div><strong>Lub-dub by ear</strong>Pick Heart sounds, play the original recording, then the sine sum. Drop the Sines slider to 12 and play again: the beat turns into a muddy hum because each short click needs many neighbouring lines.</div>
+          <div><strong>Not periodic?</strong>Use frequencies that are not integer multiples (try EMG). The sum never repeats exactly within the window.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+(function(){
+  const TAU = Math.PI*2, DEG = Math.PI/180;
+  const NCOL = 8;
+  const U = { t:'s', f:'Hz' };
+  const F_MIN = 0.05, F_MAX = 1000, W_MIN = 0.02, W_MAX = 10;
+  const logPos = (v,a,b)=> Math.round(1000*Math.log(v/a)/Math.log(b/a));
+  const logVal = (p,a,b)=> a*Math.pow(b/a, p/1000);
+  function snapF(f){ const st = f<1?0.01:f<10?0.05:f<100?0.1:1; return +(Math.round(f/st)*st).toFixed(2); }
+  function snapW(w){ const st = w<0.1?0.001:w<1?0.01:0.1; return +(Math.round(w/st)*st).toFixed(3); }
+  const fmtW = w => (w<0.1? w.toFixed(3) : w<1? w.toFixed(2) : w.toFixed(1)) + ' ' + U.t;
+  const state = { base:'square', t:0, playing:true, speed:0.25, T:2, preset:'square', N:5, f0:1 };
+  let comps = [];
+  let theme = {};
+
+  const PRESETS = {
+    square:   { name:'Square', harm:true, note:'Odd harmonics only, amplitude 4/(πn). Add harmonics and the edges sharpen, but the overshoot near each edge stays about 9% (Gibbs).' },
+    sawtooth: { name:'Sawtooth', harm:true, note:'Every harmonic, amplitude 2/(πn), with alternate terms flipped by 180°.' },
+    triangle: { name:'Triangle', harm:true, note:'Odd harmonics with amplitude 8/(π²n²). They shrink fast, so three terms already look triangular.' },
+    ecg:      { name:'ECG', harm:true, note:'Fourier series of one heartbeat (P, QRS, T) at fundamental f0 (1 Hz = 60 bpm). The sharp QRS spike needs many harmonics: try 5, then 21.' },
+    delta:    { name:'EEG δ delta', eeg:true, win:5, note:'Delta band, 0.5–4 Hz. Large, slow waves typical of deep sleep.' },
+    theta:    { name:'EEG θ theta', eeg:true, win:4, note:'Theta band, 4–8 Hz. Seen in drowsiness and light sleep.' },
+    alpha:    { name:'EEG α alpha', eeg:true, win:5, note:'Alpha band, 8–13 Hz, centered near 10 Hz. Relaxed and awake with eyes closed. The closely spaced sines drift in and out of step, so the rhythm waxes and wanes in bursts.' },
+    beta:     { name:'EEG β beta', eeg:true, win:2, note:'Beta band, 13–30 Hz. Small, fast, irregular activity of an alert, focused brain.' },
+    mixedeeg: { name:'EEG mixed', eeg:true, win:5, note:'A little of every band added together, as a real scalp recording would contain. The spectrum separates what the time trace mixes up.' },
+    pulse:    { name:'Pulse (PPG)', harm:true, maxN:6, note:'Fingertip pulse or arterial pressure wave: a systolic peak, then a smaller bump after the dicrotic notch. Unlike the ECG, about 4 harmonics are enough.' },
+    rsa:      { name:'Breathing + pulse', win:8, note:'Pulse at 1.2 Hz (72 bpm) on a 0.25 Hz breathing baseline. Breathing speeds up and slows the heart (respiratory sinus arrhythmia), which puts small sidebands 0.25 Hz either side of each pulse harmonic. Watch the beat spacing change over each 4 s breath.' },
+    pcg:      { name:'Heart sounds (PCG)', harm:true, speed:1.0,nmax:60, ndef:60, noF0:true, win:2, note:'Fitted to your recording: 115 bpm, "lub" then "dub" 0.18 s later, with most energy at 50–100 Hz. The beat repeats every 0.52 s, so every sine is a harmonic of 1.92 Hz. The Sines slider keeps the strongest ones: 60 match the recording to about 9% RMS error, 24 to about 38%.' },
+    emg:      { name:'Muscle (EMG)', win:0.3, speed:0.02, note:'Surface EMG during a steady contraction: 48 sines spread over 20–250 Hz with random phases, strongest near 70–130 Hz. Real EMG reaches about 450 Hz. As a muscle tires, its spectrum slides toward lower frequencies. Playback is slowed to 0.02×.' },
+    tremor:   { name:'Hand tremor', win:4, note:'A slow 0.5 Hz voluntary hand movement with small physiological tremor near 10 Hz riding on it. Parkinsonian tremor is larger and slower, about 4–6 Hz: try sliding the tremor sines there and raising their amplitude.' },
+    sap:      { name:'Plant sap flow', win:3, unit:{t:'d', f:'cyc/d'}, note:'Sap flow in a tree over three days: near zero at night, peaking in the early afternoon. Time here is in days and frequency in cycles per day. Only the 1st, 2nd, 4th and 6th daily harmonics are needed. Night sits below zero because the page has no constant term.' },
+    bee:      { name:'Honeybee wingbeat', win:0.03, speed:0.01, note:'A honeybee beats its wings about 230 times a second. Its buzz is that fundamental plus weaker harmonics at 460, 690 and 920 Hz. Playback runs at 1/100 speed. A mosquito beats near 500–600 Hz, which is why it whines higher.' },
+    beats:    { name:'Beats', harm:false, note:'Two equal sines at 5.0 and 5.5 Hz. The sum swells and fades at the 0.5 Hz difference.' }
+  };
+
+  // [frequency Hz, amplitude, phase deg]; amplitudes are relative, not µV
+  const EEG = {
+    delta: [[1.0,1.2,0],[1.6,0.9,60],[2.3,0.7,-120],[3.1,0.5,150],[3.8,0.3,-40]],
+    theta: [[4.5,0.6,0],[5.3,0.8,-40],[6.0,0.9,110],[6.8,0.6,-150],[7.6,0.4,30]],
+    alpha: [[9.4,0.5,0],[9.8,0.8,40],[10.2,1.0,-30],[10.6,0.7,120],[11.2,0.3,-100],[2.0,0.15,60]],
+    beta:  [[14.0,0.30,0],[16.5,0.35,70],[19.0,0.25,-110],[21.5,0.30,160],[24.5,0.20,-30],[28.0,0.15,90]],
+    mixedeeg: [[1.5,0.5,0],[3.0,0.3,80],[5.5,0.35,-60],[9.6,0.6,20],[10.1,0.8,-40],[10.6,0.5,130],[15.0,0.2,-150],[19.5,0.18,45],[24.0,0.15,-90],[38.0,0.08,10]]
+  };
+  // Pulse wave Fourier series [A, phase] for harmonics 1..6
+  const PULSE = [[1.0,-5],[0.45,-30],[0.54,-90],[0.28,-175],[0.09,120],[0.03,55]];
+  // Pulse at 1.2 Hz, frequency-modulated by 0.25 Hz breathing (±0.1 Hz), plus the breathing baseline
+  const RSA = [[0.25,0.6,0],
+    [1.2,0.96,-5],[1.45,0.20,-5],[0.95,0.20,175],
+    [2.4,0.38,-30],[2.65,0.17,-30],[2.15,0.17,150],
+    [3.6,0.36,-90],[3.85,0.27,-90],[3.35,0.27,90],[4.1,0.09,-90],[3.1,0.09,-90]];
+  const ECG = [[.61,-95],[.29,-45],[.49,70],[.89,-135],[.68,70],[.41,-30],[.53,-170],[.59,15],[.61,-135],[.62,90],[.59,-45],[.53,165],[.50,15],[.48,-130],[.43,90],[.37,-55],[.31,160],[.26,10],[.21,-135],[.17,85],[.13,-60]];
+  // Fixed presets: [frequency, amplitude, phase deg]
+  // Heart-sound fit to the uploaded recording: [harmonic of 1.923 Hz, amplitude, phase deg]
+  const PCG_F0 = 48000/24960;
+  const PCG = [[11,0.116,-126],[12,0.166,37],[14,0.253,-146],[15,0.112,24],[17,0.166,-72],[18,0.123,120],[20,0.2,-40],[21,0.299,113],[22,0.348,-80],[23,0.182,152],[24,0.449,94],[25,0.924,-58],[26,0.521,155],[27,0.498,119],[28,0.963,-19],[29,0.407,-165],[30,0.625,-170],[31,0.98,45],[32,0.335,-92],[33,0.767,-107],[34,0.929,102],[36,0.869,-34],[37,0.698,172],[38,0.333,168],[39,1.0,30],[40,0.671,-111],[41,0.44,-152],[42,0.831,85],[43,0.52,-51],[44,0.231,-84],[45,0.444,159],[46,0.194,27],[47,0.208,42],[48,0.338,-85],[49,0.205,176],[50,0.289,119],[51,0.424,3],[52,0.302,-111],[53,0.254,-172],[54,0.417,78],[55,0.287,-51],[56,0.148,-92],[57,0.317,154],[58,0.174,6],[59,0.12,47],[60,0.217,-106],[62,0.239,141],[63,0.268,-4],[65,0.28,-152],[66,0.296,67],[68,0.213,-73],[69,0.203,137],[71,0.189,31],[72,0.106,-122],[73,0.124,-96],[74,0.234,115],[75,0.115,-19],[76,0.124,-37],[77,0.202,-173],[80,0.137,-90]];
+  // One beat of the original recording, 8 kHz mono 16-bit, base64
+  const PCG_WAV = 'vf+F/5f/kv+b/5v/of+k/6r/rv+z/7j/vf/C/8f/zP/R/9b/2//g/+T/6f/t//H/9f/5//z///8BAAQABwAJAAsADQAPABAAEQASABMAFAAUABUAFQAVABUAFQAVABUAFAAUABQAFAAUABQAFAAVABYAFwAZABoAHAAfACEAIwAmACkALAAvADIANQA4ADsAPQBAAEIARABGAEcASQBKAEoASwBLAEsASgBKAEkARwBGAEQAQgBAAD0AOgA3ADQAMQAuACoAJgAjAB8AGwAXABMADwALAAcAAwAAAP3/+f/1//L/7v/q/+f/5P/h/93/2v/X/9T/0f/O/8z/yf/G/8T/wf+//7z/uv+4/7b/tP+y/7D/r/+t/6z/qv+p/6j/p/+m/6X/pP+j/6L/ov+h/6H/oP+g/6D/oP+g/6D/oP+g/6H/of+i/6L/o/+k/6X/p/+o/6r/rP+u/7D/sv+0/7f/uv+8/7//wv/G/8n/zf/Q/9T/2P/c/+D/5P/p/+3/8v/3//v/AAAEAAkADQASABYAGgAeACEAJQAoACsALQAwADIANAA1ADcAOAA4ADkAOQA5ADgAOAA3ADYANQA0ADIAMQAvAC4ALAAqACgAJwAlACMAIgAgAB4AHQAbABoAGQAYABcAFgAVABUAFAAUABQAFAAUABQAFAAUABQAFQAVABUAFgAWABYAFgAWABYAFgAWABYAFQAVABUAFAAUABMAEwASABIAEQAQAA8ADwAOAA0ADAALAAoACQAHAAYABAADAAEAAAD+//z/+v/4//b/9P/y//D/7f/r/+n/5v/j/+H/3v/c/9n/1v/U/9H/z//N/8r/yP/G/8T/w//B/8D/v/++/73/vP+7/7v/uv+6/7n/uf+4/7j/uP+4/7j/uP+4/7j/uf+5/7r/u/+8/73/vv/A/8H/w//F/8f/yf/L/83/0P/S/9T/1//a/9z/3//h/+T/5v/p/+v/7v/w//L/9P/2//j/+v/8//7///8AAAEAAgAEAAUABgAHAAgACgALAAwADQAOAA8AEAAQABEAEgATABQAFAAVABYAFgAXABgAGAAZABoAGgAbABsAHAAcABwAHAAcABsAGwAaABkAFwAWABQAEgAQAA4ACwAIAAYAAwAAAP7/+v/3//X/8v/v/+z/6v/o/+X/5P/i/+D/3//e/93/3f/c/9z/3P/c/93/3f/e/9//4P/h/+L/4//k/+X/5v/n/+j/6v/r/+z/7f/u/+//8P/x//P/9P/1//f/+P/5//v//P/+/wAAAAACAAQABQAHAAkACwANAA4AEAASABQAFQAXABgAGgAbABwAHQAeAB8AHwAgACAAIAAgACAAHwAeAB0AHAAbABkAFwAVABMAEAAOAAsACAAFAAIAAAD8//n/9f/y/+7/6//o/+T/4f/e/9v/2P/V/9L/z//N/8r/yP/G/8T/w//B/8D/wP+//7//v/+//7//wP/B/8L/w//F/8f/yP/K/8z/zv/Q/9L/1P/W/9j/2v/c/93/3//g/+L/4//k/+X/5//o/+n/6v/r/+z/7f/u/+//8f/y//P/9P/1//f/+P/6//v//f/+/wAAAQACAAQABQAHAAgACQAKAAsADAANAA4ADwAQABAAEQARABIAEgATABMAFAAUABQAFAAVABUAFQAVABQAFAAUABQAEwASABIAEQAQABAADwAOAA0ADAALAAsACgAJAAgABwAGAAQAAwACAAEAAAD///7//P/6//n/9//1//P/8v/w/+7/7P/r/+n/6f/o/+j/6P/n/+f/5v/m/+X/4//i/+H/3//e/9z/2//a/9n/2f/Z/9j/2f/Z/9r/2//c/93/3v/g/+L/4//l/+f/6v/s/+7/8f/z//X/+P/6//z///8AAAIABQAGAAkACwAMAA4AEAASABMAFQAWABgAGQAbABwAHgAfACAAIQAiACQAJAAlACYAJgAmACYAJgAlACQAIwAiACAAHgAbABgAFQASAA8ACwAHAAMAAAD9//n/9v/y/+//7P/q/+f/5f/j/+L/4P/f/97/3v/d/93/3P/c/9z/3P/d/93/3v/f/+D/4v/k/+b/6P/r/+7/8f/1//n//f8BAAYADAASABkAHwAmAC0ANQA8AEQATABTAFoAYQBnAG0AcgB2AHoAfQB/AIAAgAB/AH4AewB3AHIAbABmAF4AVQBMAEIAOAAtACIAFwALAAAA9v/r/+H/1//N/8T/u/+z/6v/pP+c/5X/j/+I/4L/e/91/2//af9j/17/WP9T/07/Sv9G/0L/P/87/zn/N/81/zT/M/8z/zT/Nv85/z3/Qf9H/07/Vv9f/2r/dv+D/5H/oP+u/73/yv/W/+D/6P/s/+7/7P/n/9//0//G/7b/pf+U/4H/bf9X/z7/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WABTAE0ARwA/ADYALAAgABQABQD3/+b/0//A/6v/lP99/2T/Sv8w/xT/9/7a/rv+nP59/l3+Pf4d/vz92/27/Zv9e/1c/T39H/0B/eX8yfyv/JX8fPxl/E/8Ovwm/BT8A/zz++X72PvN+8P7u/u0+6/7rPuq+6v7rPuw+7X7vPvF+9D73Pvq+/r7DPwf/DT8S/xj/H38mfy2/NX89fwW/Tn9XP2A/ab9zP3y/Rr+Qf5q/pL+u/7k/g3/Nv9f/4j/sP/Y/wAAJwBPAHYAnADCAOgADQEyAVUBeAGaAbsB3AH7ARkCNgJSAm0ChwKfArYCzALgAvICBAMTAyIDLgM6A0MDSwNSA1cDWwNdA10DXANaA1cDUQNLA0QDOwMxAyUDGQMLA/wC7QLcAsoCtwKjAo8CeQJjAkwCNAIcAgMC6gHQAbYBnAGBAWYBTAExARYB+wDhAMYArACTAHkAYQBIADEAGQADAO//2v/F/7L/n/+N/3v/a/9b/0z/Pv8w/yT/GP8N/wP/+f7x/un+4v7c/tf+0v7P/sz+yv7J/sn+yv7L/s7+0f7V/tr+4P7m/u7+9f7+/gf/EP8a/yX/MP88/0f/U/9g/2z/ef+G/5P/oP+s/7n/xf/S/97/6f/0////CAASABsAIwArADIAOQA/AEUASwBQAFUAWgBeAGIAZgBqAG4AcQB0AHcAegB8AH8AgQCDAIUAhwCJAIsAjACOAI8AjwCQAJAAkACQAI8AjgCNAIwAigCIAIYAhACCAH8AfQB6AHcAcwBwAGwAaABkAGAAXABXAFMATgBJAEUAQAA8ADgANAAwACwAKAAlACIAHwAcABkAFgATABAADgALAAgABQACAP///P/4//T/8P/s/+f/4//e/9n/1P/P/8n/xP++/7n/s/+t/6f/of+b/5X/jv+I/4L/fP92/3D/av9k/17/WP9S/0z/Rv9A/zv/Nv8x/yz/KP8k/yD/Hf8Z/xf/FP8S/xD/D/8O/w7/Dv8P/xD/Ef8T/xX/GP8a/x3/If8k/yj/K/8w/zT/OP89/0H/Rv9L/1D/Vf9a/1//ZP9p/2//dP95/37/g/+I/43/kv+Y/53/ov+n/63/sv+4/73/w//J/8//1f/b/+H/5//t//P/+v8AAAUACwARABcAHQAjACkALgA0ADkAPgBDAEcASwBPAFMAVwBaAF0AYABjAGYAaQBrAG4AcAByAHQAdgB3AHgAegB7AHsAfAB8AH0AfQB9AH0AfQB9AH0AfAB8AHsAewB6AHoAeQB4AHcAdgB1AHMAcgBwAG8AbQBrAGgAZgBkAGEAXwBcAFkAVgBUAFEATQBKAEYAQwA/ADoANgAxAC0AKAAjAB4AGQAUAA8ACgAFAAEA/f/4//T/7//q/+b/4f/c/9j/0//P/8v/x//D/7//u/+3/7T/sP+t/6r/p/+j/6D/nf+a/5f/lP+S/4//jf+K/4n/h/+F/4T/hP+D/4T/g/+H/4P/jP9//w==';
+  const FIXED = {
+    emg: [[23.9,0.38,100],[26.6,0.66,155],[27.6,0.51,-125],[36.2,0.69,45],[39.1,0.48,-130],[49.6,0.53,-20],[49.6,0.88,105],[49.8,0.77,140],[51.7,0.66,95],[54.0,0.68,-165],[54.0,0.58,-50],[66.2,0.65,-120],[66.5,0.58,180],[67.0,0.96,-130],[69.9,0.8,-90],[74.1,0.64,-50],[83.3,0.94,-160],[83.7,0.68,135],[98.0,0.61,50],[99.5,0.86,-120],[101.3,1.0,0],[104.9,0.59,-150],[118.9,0.91,40],[127.4,0.62,-95],[127.8,0.57,-165],[131.2,0.53,-140],[134.8,0.64,20],[137.6,0.82,50],[137.8,0.72,-65],[146.3,0.83,50],[147.4,0.57,-55],[156.1,0.59,-135],[158.3,0.56,-65],[163.0,0.81,-40],[172.5,0.75,150],[174.2,0.54,-140],[174.9,0.57,-150],[180.4,0.51,20],[201.2,0.57,165],[204.5,0.36,145],[207.8,0.36,70],[219.5,0.41,-155],[226.1,0.36,110],[227.3,0.5,65],[228.4,0.47,-130],[233.5,0.41,-15],[238.1,0.42,-160],[245.6,0.4,110]],
+    tremor: [[0.5,1.5,0],[9.4,0.10,0],[10.0,0.18,50],[10.6,0.12,-80],[11.4,0.06,140]],
+    sap: [[1,1.0,-110],[2,0.42,55],[4,0.08,-160],[6,0.04,-20]],
+    bee: [[230,1.0,0],[460,0.45,-60],[690,0.25,40],[920,0.12,-120]]
+  };
+  const BANDS = [['δ',0.5,4],['θ',4,8],['α',8,13],['β',13,30],['γ',30,100]];
+
+  const INFO = {
+    square:  ['Square wave', ['Square waves are the clock signals that time every digital circuit.', 'They contain only odd harmonics (1, 3, 5, …) with amplitudes falling as 1/n.', 'However many harmonics you add, the sum overshoots each edge by about 9%. This is the Gibbs phenomenon, explained in 1899.']],
+    sawtooth:['Sawtooth wave', ['A sawtooth contains every harmonic, with amplitudes falling as 1/n, which gives it a bright, buzzy sound.', 'It is the classic starting point of analog synthesizers, which filter harmonics away to shape a tone.', 'Old CRT televisions swept their electron beam across the screen with a sawtooth.']],
+    triangle:['Triangle wave', ['A triangle wave is the integral of a square wave. Integrating divides each harmonic by n, so amplitudes fall as 1/n².', 'With so little high-frequency content it sounds soft, a little like a flute.', 'Three or four sines already give a convincing triangle.']],
+    ecg:     ['Electrocardiogram (ECG)', ['The ECG is the heart\'s electrical activity measured on the skin, about 1 mV at the R peak.', 'P is the atria depolarizing, QRS the ventricles depolarizing, and T the ventricles repolarizing.', 'Diagnostic ECGs record roughly 0.05–150 Hz. Willem Einthoven recorded the first practical ECG in 1903 and won the 1924 Nobel Prize for it.']],
+    delta:   ['Delta waves (EEG)', ['Delta waves (0.5–4 Hz) are the largest and slowest brain rhythm, up to about 100–200 µV.', 'They dominate deep, slow-wave sleep, the stage hardest to wake from.', 'Infants show much more delta activity than adults, even when awake.']],
+    theta:   ['Theta waves (EEG)', ['Theta (4–8 Hz) appears as you get drowsy and in light sleep.', 'In rats and mice, a strong hippocampal theta rhythm accompanies exploring and forming spatial memories.', 'Seeing a lot of theta in an awake adult can be a clinical warning sign.']],
+    alpha:   ['Alpha waves (EEG)', ['Alpha (8–13 Hz) was the first brain rhythm ever recorded, by Hans Berger in 1929. It is still called the Berger rhythm.', 'It is strongest over the back of the head when you relax with your eyes closed.', 'Open your eyes or do mental arithmetic and alpha shrinks within a fraction of a second ("alpha blocking").']],
+    beta:    ['Beta waves (EEG)', ['Beta (13–30 Hz) is small (about 5–20 µV) and dominates when you are alert and thinking.', 'Over the motor cortex, beta drops just before and during a movement, then rebounds after it.', 'Sedatives such as benzodiazepines noticeably increase beta power.']],
+    mixedeeg:['Scalp EEG', ['Scalp EEG is tens of microvolts, roughly 100 times smaller than the ECG.', 'It is the summed synaptic currents of millions of aligned cortical neurons; a single neuron is far too small to see.', 'Clinical EEG places electrodes using the international 10–20 system.']],
+    pulse:   ['Pulse wave (PPG)', ['A photoplethysmogram measures how much light the blood in your fingertip or wrist absorbs as each heartbeat swells the vessels.', 'Pulse oximeters compare red (about 660 nm) and infrared (about 940 nm) light to estimate blood oxygen. Smartwatches usually use green light.', 'The dicrotic notch marks the aortic valve snapping shut.']],
+    rsa:     ['Respiratory sinus arrhythmia', ['Your heart speeds up as you breathe in and slows as you breathe out.', 'The vagus nerve drives this. Larger swings generally mean stronger parasympathetic activity; it is often stronger in young, fit people.', 'It is a main reason heart rate variability (HRV) is used as a measure of recovery and stress.']],
+    pcg:     ['Heart sounds (phonocardiogram)', ['"Lub" (S1) is the mitral and tricuspid valves closing; "dub" (S2) is the aortic and pulmonary valves closing.', 'René Laennec invented the stethoscope in 1816, starting with a rolled-up paper tube.', 'Most heart-sound energy is below about 150 Hz, near the bottom of human hearing where the ear is least sensitive.']],
+    emg:     ['Electromyogram (EMG)', ['EMG is the sum of electrical spikes from many motor units firing as a muscle contracts.', 'Myoelectric prosthetic hands read surface EMG from the residual limb to open and close the hand.', 'As a muscle tires, nerve-impulse conduction slows and the EMG spectrum shifts to lower frequencies.']],
+    tremor:  ['Hand tremor', ['Everyone has a small physiological tremor at about 8–12 Hz, set by limb mechanics and motor-unit firing.', 'Parkinsonian tremor is slower (about 4–6 Hz), larger, and strongest at rest.', 'A phone\'s accelerometer is sensitive enough to measure tremor frequency.']],
+    sap:     ['Tree sap flow', ['Sap flow is driven by transpiration, which follows sunlight and air dryness, so it peaks in the early afternoon.', 'It is measured with heat probes in the trunk: faster sap carries heat away faster.', 'One cycle per day is a frequency of about 11.6 µHz, yet the Fourier math is exactly the same.']],
+    bee:     ['Honeybee wingbeat', ['A honeybee beats its wings about 230 times a second with a short stroke of roughly 90°.', 'Its flight muscles are asynchronous: one nerve impulse drives many wingbeats, because the muscle resonates with the thorax.', 'Female mosquitoes beat lower (about 400–500 Hz) than males (about 600–700 Hz), and males find females by that tone.']],
+    beats:   ['Beats', ['Two tones close in frequency drift in and out of step, so their sum swells and fades at the difference frequency.', 'Musicians tune by adjusting a string until the beating slows and disappears.', 'The same mixing idea, heterodyning, is how radios shift signals to a fixed frequency.']]
+  };
+
+  const rnd = (a,b)=> a + Math.random()*(b-a);
+  const r2 = (v,s)=> Math.round(v/s)*s;
+  function wrapPh(d){ d = ((d+180)%360+360)%360-180; return d===-180?180:d; }
+
+  function buildPreset(key){
+    const N = state.N, f0 = state.f0, out = [];
+    const push = (f,A,ph)=> out.push({ f:+f.toFixed(2), A:+A.toFixed(3), ph:wrapPh(Math.round(ph)), on:true });
+    if(key==='square'){
+      for(let k=0, n=1; k<N; k++, n+=2) push(n*f0, 4/(Math.PI*n), 0);
+    } else if(key==='sawtooth'){
+      for(let n=1; n<=N; n++) push(n*f0, 2/(Math.PI*n), n%2 ? 0 : 180);
+    } else if(key==='triangle'){
+      for(let k=0, n=1; k<N; k++, n+=2) push(n*f0, 8/(Math.PI*Math.PI*n*n), ((n-1)/2)%2 ? 180 : 0);
+    } else if(key==='pcg'){
+      PCG.slice().sort((a,b)=>b[1]-a[1]).slice(0,N).sort((a,b)=>a[0]-b[0]).forEach(([n,A,ph])=> push(n*PCG_F0, A, ph));
+    } else if(key==='pulse'){
+      PULSE.slice(0,Math.min(N,PULSE.length)).forEach(([A,ph],j)=> push((j+1)*f0, A, ph));
+    } else if(key==='rsa'){
+      RSA.forEach(([f,A,ph])=> push(f,A,ph));
+    } else if(FIXED[key]){
+      FIXED[key].forEach(([f,A,ph])=> push(f,A,ph));
+    } else if(key==='ecg'){
+      const E=[[.61,-95],[.29,-45],[.49,70],[.89,-135],[.68,70],[.41,-30],[.53,-170],[.59,15],[.61,-135],[.62,90],[.59,-45],[.53,165],[.50,15],[.48,-130],[.43,90],[.37,-55],[.31,160],[.26,10],[.21,-135],[.17,85],[.13,-60]];
+      for(let n=1;n<=Math.min(N,E.length);n++) push(n*f0, E[n-1][0], E[n-1][1]);
+    } else if(EEG[key]){
+      EEG[key].forEach(([f,A,ph])=> push(f,A,ph));
+    } else if(key==='beats'){
+      push(5,1,0); push(5.5,1,0);
+    } else {
+      push(1,1,0);
+    }
+    return out;
+  }
+
+  /* ---------- theme ---------- */
+  function readTheme(){
+    const cs = getComputedStyle(document.documentElement);
+    const g = n => cs.getPropertyValue(n).trim();
+    theme = { ink:g('--ink'), muted:g('--muted'), grid:g('--grid'), rule:g('--rule'), panel:g('--panel'), accent:g('--accent'),
+      cols: Array.from({length:NCOL},(_,i)=>g('--c'+(i+1))), mono:'11px "IBM Plex Mono", ui-monospace, monospace' };
+  }
+  readTheme();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readTheme);
+  new MutationObserver(readTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme','class','style']});
+  const colOf = i => theme.cols[i % NCOL];
+  const cssCol = i => 'var(--c'+((i%NCOL)+1)+')';
+
+  /* ---------- UI ---------- */
+  const $ = id => document.getElementById(id);
+  const presetBox = $('presets');
+  Object.entries(PRESETS).forEach(([k,p])=>{
+    const b = document.createElement('button');
+    b.type='button'; b.className='chip'; b.textContent=p.name; b.dataset.k=k;
+    b.addEventListener('click',()=> applyPreset(k));
+    presetBox.appendChild(b);
+  });
+
+  function applyPreset(k, fromSlider){
+    stopSound();
+    if(!fromSlider){
+      const q = PRESETS[k] || {}, mx = q.nmax || 21;
+      $('in-n').max = mx;
+      if(q.ndef) state.N = q.ndef; else if(state.N > mx || state.base==='pcg') state.N = 5;
+      $('in-n').value = state.N; $('out-n').textContent = state.N;
+      $('row-f0').hidden = !!q.noF0;
+      $('lbl-n').textContent = q.noF0 ? 'Sines' : 'Harmonics';
+    }
+    state.preset = k; state.base = k;
+    comps = buildPreset(k);
+    const p = PRESETS[k] || {};
+    const un = p.unit || {t:'s', f:'Hz'}; U.t = un.t; U.f = un.f;
+    setWindow(p.win || 2);
+    setSpeed(p.speed || 0.25);
+    syncPresetUI();
+    renderList();
+  }
+  function syncPresetUI(){
+    presetBox.querySelectorAll('.chip').forEach(b=> b.setAttribute('aria-pressed', String(b.dataset.k===state.preset)));
+    const p = PRESETS[state.preset];
+    $('harm-ctrls').hidden = !(p && p.harm);
+    $('preset-note').textContent = p ? p.note : 'Your own mix. Pick a preset above to start over.';
+    const info = INFO[state.base];
+    const ttl = info ? info[0] + (p ? '' : ' (edited)') : 'Sine Wave Synthesizer';
+    $('hd').textContent = ttl;
+    const lede = $('lede'); lede.innerHTML = '';
+    const ul = document.createElement('ul');
+    (info ? info[1] : ['Any time-domain signal can be built by adding sine waves, each with its own frequency, amplitude and phase.']).forEach(t=>{ const li=document.createElement('li'); li.textContent=t; ul.appendChild(li); });
+    lede.appendChild(ul);
+    $('sound').hidden = state.base !== 'pcg';
+  }
+  function markCustom(){
+    if(state.preset!=='custom'){ state.preset='custom'; syncPresetUI(); }
+  }
+
+  $('in-n').addEventListener('input', e=>{ state.N=+e.target.value; $('out-n').textContent=state.N; if(PRESETS[state.preset]?.harm) applyPreset(state.preset, true); });
+  $('in-f0').addEventListener('input', e=>{ state.f0=+e.target.value; $('out-f0').textContent=state.f0.toFixed(1)+' Hz'; if(PRESETS[state.preset]?.harm) applyPreset(state.preset, true); });
+
+  const fmtF = v => (v>=10? v.toFixed(1) : v.toFixed(2)).replace(/\.?0+$/,'') + ' ' + U.f;
+  const fmtA = v => v.toFixed(2);
+  const fmtP = v => (v>0?'+':'') + v + '°';
+
+  function renderList(){
+    const list = $('list');
+    list.innerHTML = '';
+    comps.forEach((c,i)=>{
+      const row = document.createElement('div');
+      row.className = 'comp' + (c.on?'':' off');
+      row.style.setProperty('--cc', cssCol(i));
+      row.innerHTML =
+        '<div class="comp-head"><input type="checkbox" id="on-'+i+'"'+(c.on?' checked':'')+' aria-label="Include component '+(i+1)+'">'+
+        '<label class="name" for="on-'+i+'">Sine '+(i+1)+'</label>'+
+        '<button class="x" type="button" aria-label="Remove sine '+(i+1)+'">×</button></div>'+
+        '<div class="sl"><label for="f-'+i+'">f</label><input type="range" id="f-'+i+'" min="0" max="1000" step="1" value="'+logPos(c.f,F_MIN,F_MAX)+'"><output>'+fmtF(c.f)+'</output></div>'+
+        '<div class="sl"><label for="a-'+i+'">A</label><input type="range" id="a-'+i+'" min="0" max="2" step="0.01" value="'+c.A+'"><output>'+fmtA(c.A)+'</output></div>'+
+        '<div class="sl"><label for="p-'+i+'">φ</label><input type="range" id="p-'+i+'" min="-180" max="180" step="5" value="'+c.ph+'"><output>'+fmtP(c.ph)+'</output></div>';
+      const [onEl] = row.getElementsByTagName('input');
+      onEl.addEventListener('change',()=>{ c.on=onEl.checked; row.classList.toggle('off',!c.on); markCustom(); updateEq(); });
+      row.querySelector('.x').addEventListener('click',()=>{ comps.splice(i,1); markCustom(); renderList(); });
+      const bind = (id,key,fmt,map)=>{
+        const el = row.querySelector('#'+id), out = el.nextElementSibling;
+        el.addEventListener('input',()=>{ c[key]= map ? map(+el.value) : +el.value; out.textContent=fmt(c[key]); markCustom(); updateEq(); });
+      };
+      bind('f-'+i,'f',fmtF,p=>snapF(logVal(p,F_MIN,F_MAX))); bind('a-'+i,'A',fmtA); bind('p-'+i,'ph',fmtP);
+      list.appendChild(row);
+    });
+    $('count').textContent = '· ' + comps.length;
+    $('btn-add').disabled = comps.length >= 60;
+    sizeParts();
+    ref = 0;
+    updateEq();
+  }
+
+  $('btn-add').addEventListener('click',()=>{
+    const fmax = comps.reduce((m,c)=>Math.max(m,c.f),0);
+    comps.push({ f:+(fmax>0? Math.min(F_MAX,fmax+1) : 1).toFixed(1), A:0.5, ph:0, on:true });
+    markCustom(); renderList();
+    const l=$('list'); l.scrollTop=l.scrollHeight;
+  });
+  $('btn-phase').addEventListener('click',()=>{
+    comps.forEach(c=> c.ph = r2(rnd(-180,180),5));
+    markCustom(); renderList();
+  });
+
+  function updateEq(){
+    const on = comps.filter(c=>c.on && c.A>0);
+    let s = '<b>x(t)</b> = ';
+    if(!on.length){ $('eq').innerHTML = s + '0'; return; }
+    const show = on.slice(0,4).map((c,j)=>{
+      const sign = j===0 ? '' : ' + ';
+      const ph = c.ph===0 ? '' : (c.ph>0 ? ' + ' + c.ph + '°' : ' − ' + Math.abs(c.ph) + '°');
+      return sign + c.A.toFixed(2) + '·sin(2π·' + fmtF(c.f).replace(' '+U.f,'') + 't' + ph + ')';
+    }).join('');
+    s += show;
+    if(on.length>4) s += ' + … <span style="color:var(--muted)">(' + on.length + ' sines in total)</span>';
+    $('eq').innerHTML = s;
+  }
+
+  /* sound */
+  let actx = null, src = null;
+  function stopSound(){
+    if(src){ try{ src.onended=null; src.stop(); }catch(e){} src = null; }
+    $('btn-snd').textContent = 'Play sine sum'; $('btn-orig').textContent = 'Play original recording';
+  }
+  function getCtx(){
+    try{ actx = actx || new (window.AudioContext||window.webkitAudioContext)(); }
+    catch(e){ $('snd-msg').textContent = 'This browser cannot play audio on this page.'; return null; }
+    if(actx.state==='suspended') actx.resume();
+    return actx;
+  }
+  function startBuf(buf, btn){
+    src = actx.createBufferSource(); src.buffer = buf; src.connect(actx.destination);
+    src.onended = ()=>{ src = null; stopSound(); };
+    src.start(); btn.textContent = 'Stop';
+  }
+  $('btn-orig').addEventListener('click',()=>{
+    if(src){ stopSound(); return; }
+    if(!getCtx()) return;
+    const raw = atob(PCG_WAV), m = raw.length/2, sr = 8000, n = sr*8;
+    const one = new Float32Array(m);
+    for(let i=0;i<m;i++){ let v = raw.charCodeAt(2*i) | (raw.charCodeAt(2*i+1)<<8); if(v>32767) v-=65536; one[i] = v/32768; }
+    const buf = actx.createBuffer(1, n, sr), d = buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i] = one[i % m];
+    startBuf(buf, $('btn-orig'));
+  });
+  $('btn-snd').addEventListener('click',()=>{
+    if(src){ stopSound(); return; }
+    const on = comps.filter(c=>c.on && c.A>0);
+    if(!on.length){ $('snd-msg').textContent = 'Tick at least one sine to hear something.'; return; }
+    if(!getCtx()) return;
+    const sr = actx.sampleRate, n = Math.floor(sr*8), shift = $('in-shift').checked ? 100 : 0;
+    const buf = actx.createBuffer(1, n, sr), d = buf.getChannelData(0);
+    for(const c of on){ const w = TAU*(c.f+shift)/sr, p = c.ph*DEG, A = c.A; for(let i=0;i<n;i++) d[i] += A*Math.sin(w*i+p); }
+    let peak = 1e-9; for(let i=0;i<n;i++){ const a=Math.abs(d[i]); if(a>peak) peak=a; }
+    const g = 0.8/peak, fade = Math.floor(sr*0.02);
+    for(let i=0;i<n;i++){ let e=g; if(i<fade) e*=i/fade; else if(i>n-fade) e*=(n-i)/fade; d[i]*=e; }
+    startBuf(buf, $('btn-snd'));
+  });
+
+  /* transport */
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function setPlaying(p){ state.playing=p; $('btn-play').textContent = p ? 'Pause' : 'Play'; }
+  $('btn-play').addEventListener('click',()=> setPlaying(!state.playing));
+  function setSpeed(v){ state.speed=v; $('in-speed').value=v; $('out-speed').textContent=(v<0.1? v.toFixed(3): v.toFixed(2))+'×'; }
+  function setWindow(w){ state.T=w; $('in-win').value=logPos(w,W_MIN,W_MAX); $('out-win').textContent=fmtW(w); }
+  $('in-speed').addEventListener('input',e=>{ setSpeed(+e.target.value); });
+  $('in-win').addEventListener('input',e=>{ state.T=snapW(logVal(+e.target.value,W_MIN,W_MAX)); $('out-win').textContent=fmtW(state.T); });
+
+  /* ---------- drawing ---------- */
+  const val = (c,t)=> c.A*Math.sin(TAU*c.f*t + c.ph*DEG);
+  const sumAt = t => { let s=0; for(const c of comps) if(c.on) s+=val(c,t); return s; };
+  const sumAbs = () => Math.max(1e-6, comps.reduce((s,c)=> s + (c.on?c.A:0), 0));
+
+  function setup(cv){
+    const dpr = window.devicePixelRatio||1, w = cv.clientWidth, h = cv.clientHeight;
+    const W = Math.round(w*dpr), H = Math.round(h*dpr);
+    if(cv.width!==W || cv.height!==H){ cv.width=W; cv.height=H; }
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,w,h);
+    ctx.font = theme.mono; ctx.lineJoin='round'; ctx.lineCap='round';
+    return {ctx,w,h};
+  }
+  function niceStep(range, target){
+    const raw = range/target, p = Math.pow(10,Math.floor(Math.log10(raw))), m = raw/p;
+    return (m<1.5?1:m<3.5?2:m<7.5?5:10)*p;
+  }
+  function timeAxis(ctx, x0, x1, yTop, yBot, t0, t1, labels){
+    const step = niceStep(t1-t0, Math.max(2, Math.floor((x1-x0)/90)));
+    ctx.strokeStyle = theme.grid; ctx.lineWidth=1; ctx.fillStyle = theme.muted; ctx.textAlign='center'; ctx.textBaseline='top';
+    for(let t = Math.ceil(t0/step)*step; t<=t1+1e-9; t+=step){
+      const x = x0 + (t-t0)/(t1-t0)*(x1-x0);
+      ctx.beginPath(); ctx.moveTo(x,yTop); ctx.lineTo(x,yBot); ctx.stroke();
+      if(labels) ctx.fillText(t.toFixed(Math.max(0,Math.ceil(-Math.log10(step)-1e-9)))+' '+U.t, x, yBot+4);
+    }
+  }
+  function trace(ctx, x0, x1, t0, t1, yOf, fn){
+    const n = Math.max(2, Math.ceil((x1-x0)*2));
+    ctx.beginPath();
+    for(let i=0;i<=n;i++){
+      const x = x0 + (x1-x0)*i/n, t = t0 + (t1-t0)*i/n, y = yOf(fn(t));
+      i ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+    }
+    ctx.stroke();
+  }
+
+  const cvPh = $('cv-phasor'), cvParts = $('cv-parts'), cvSpec = $('cv-spec');
+
+  function sizeParts(){
+    const n = Math.max(1, comps.length);
+    const lane = n<=6 ? 52 : n<=12 ? 38 : n<=24 ? 28 : 17;
+    cvParts.style.height = (n*lane + 26) + 'px';
+  }
+
+  let ref = 0; // smoothed vertical scale for the sum plot
+  function drawPhasor(){
+    const {ctx,w,h} = setup(cvPh);
+    const narrow = w < 560;
+    const region = Math.min(h-24, narrow ? w*0.42 : w*0.34);
+    const cx = w - region/2 - 8, cy = h/2;
+    const x0 = 44, x1 = w - region - 24;
+    const t1 = state.t, t0 = t1 - state.T;
+
+    // sample the sum once
+    const n = Math.max(2, Math.ceil((x1-x0)*2)), vals = new Float32Array(n+1);
+    let peak = 1e-6;
+    for(let i=0;i<=n;i++){ const v = sumAt(t0 + (t1-t0)*i/n); vals[i] = v; if(Math.abs(v)>peak) peak = Math.abs(v); }
+    // phasor chain, largest first (unit coordinates)
+    const order = comps.map((c,i)=>({c,i})).filter(o=>o.c.on && o.c.A>0).sort((a,b)=>b.c.A-a.c.A);
+    const pts = [[0,0]]; let ux = 0, uy = 0, ext = 0;
+    for(const {c} of order){ const ang = TAU*c.f*t1 + c.ph*DEG; ux += c.A*Math.cos(ang); uy += c.A*Math.sin(ang); pts.push([ux,uy]); ext = Math.max(ext, Math.hypot(ux,uy)); }
+    const target = Math.max(peak, ext*0.8);
+    ref = (ref < target) ? target : ref + (target-ref)*0.03;
+    const s = (Math.min(region/2, (h-28)/2) - 6)/ref;
+
+    // y grid + labels
+    const ys = niceStep(ref, 2);
+    ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.lineWidth=1;
+    for(let v=-Math.floor(ref/ys)*ys; v<=ref+1e-9; v+=ys){
+      const y = cy - v*s;
+      ctx.strokeStyle = Math.abs(v)<1e-9 ? theme.rule : theme.grid;
+      ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke();
+      ctx.fillStyle = theme.muted; ctx.fillText(+v.toFixed(2), x0-8, y);
+    }
+    timeAxis(ctx, x0, x1, 10, h-22, t0, t1, true);
+    ctx.strokeStyle = theme.ink; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for(let i=0;i<=n;i++){ const x = x0 + (x1-x0)*i/n, y = cy - s*vals[i]; i ? ctx.lineTo(x,y) : ctx.moveTo(x,y); }
+    ctx.stroke();
+
+    // chain, clipped to its region
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x1+12, 0, w-x1-12, h); ctx.clip();
+    ctx.strokeStyle = theme.rule; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+    ctx.beginPath(); ctx.arc(cx,cy,ref*s,0,TAU); ctx.stroke(); ctx.setLineDash([]);
+    order.forEach(({c,i},k)=>{
+      const [ax,ay] = pts[k], [bx,by] = pts[k+1];
+      const px = cx + ax*s, py = cy - ay*s, nx = cx + bx*s, ny = cy - by*s;
+      ctx.globalAlpha = .35; ctx.strokeStyle = colOf(i); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(px,py,c.A*s,0,TAU); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(nx,ny); ctx.stroke();
+    });
+    ctx.restore();
+    const tx = cx + ux*s, ty = cy - uy*s;
+    // connector
+    ctx.strokeStyle = theme.accent; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(x1,ty); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = theme.accent;
+    ctx.beginPath(); ctx.arc(tx,ty,4,0,TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(x1,ty,4,0,TAU); ctx.fill();
+    ctx.fillStyle = theme.muted; ctx.textAlign='left'; ctx.textBaseline='top';
+    ctx.fillText('x = ' + vals[n].toFixed(2), x0+4, 10);
+  }
+
+  function drawParts(){
+    const {ctx,w,h} = setup(cvParts);
+    const n = comps.length;
+    if(!n){ ctx.fillStyle=theme.muted; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('No components. Press Add sine.', w/2, h/2); return; }
+    const x0 = 78, x1 = w-8, top = 4, bot = h-22, lane = (bot-top)/n;
+    const t1 = state.t, t0 = t1-state.T;
+    timeAxis(ctx, x0, x1, top, bot, t0, t1, true);
+    const maxA = Math.max(1e-6, ...comps.map(c=>c.A));
+    const amp = lane*0.44/maxA;
+    comps.forEach((c,i)=>{
+      const cy = top + lane*(i+.5);
+      ctx.strokeStyle = theme.grid; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x0,cy); ctx.lineTo(x1,cy); ctx.stroke();
+      ctx.fillStyle = c.on ? colOf(i) : theme.muted; ctx.textAlign='right'; ctx.textBaseline='middle';
+      ctx.fillText(fmtF(c.f), x0-10, cy);
+      ctx.strokeStyle = colOf(i); ctx.lineWidth = 1.6; ctx.globalAlpha = c.on?1:.35;
+      if(!c.on) ctx.setLineDash([4,4]);
+      trace(ctx, x0, x1, t0, t1, v=> cy - amp*v, t=>val(c,t));
+      ctx.setLineDash([]); ctx.globalAlpha=1;
+    });
+  }
+
+  function drawSpec(){
+    const {ctx,w,h} = setup(cvSpec);
+    const x0 = 46, x1 = w-12;
+    const fmax = Math.max(4, ...comps.map(c=>c.f))*1.08;
+    const aTop = 14, aBot = Math.round(h*0.56), pTop = aBot + 26, pBot = h-22;
+    const maxA = Math.max(0.5, ...comps.map(c=>c.A));
+    const ay = v => aBot - v/maxA*(aBot-aTop);
+    const py = v => (pTop+pBot)/2 - v/180*(pBot-pTop)/2;
+    const fx = f => x0 + f/fmax*(x1-x0);
+
+    // EEG bands
+    if(PRESETS[state.preset]?.eeg){
+      ctx.textAlign='center'; ctx.textBaseline='top';
+      BANDS.forEach(([lab,a,b],j)=>{
+        if(a>=fmax) return;
+        const xa=fx(a), xb=fx(Math.min(b,fmax));
+        ctx.fillStyle=theme.accent; ctx.globalAlpha = j%2 ? .05 : .11;
+        ctx.fillRect(xa,aTop,xb-xa,aBot-aTop);
+        ctx.globalAlpha=1; ctx.fillStyle=theme.muted;
+        ctx.font='13px "IBM Plex Sans", system-ui, sans-serif';
+        if(xb-xa>14) ctx.fillText(lab,(xa+xb)/2,aTop+2);
+        ctx.font=theme.mono;
+      });
+    }
+    // frequency grid
+    const fs = niceStep(fmax, Math.max(3, Math.floor((x1-x0)/70)));
+    ctx.lineWidth=1; ctx.textAlign='center'; ctx.textBaseline='top';
+    for(let f=0; f<=fmax; f+=fs){
+      const x = fx(f);
+      ctx.strokeStyle=theme.grid;
+      ctx.beginPath(); ctx.moveTo(x,aTop); ctx.lineTo(x,aBot); ctx.moveTo(x,pTop); ctx.lineTo(x,pBot); ctx.stroke();
+      ctx.fillStyle=theme.muted; ctx.fillText(+f.toFixed(2)+' '+U.f, x, pBot+4);
+    }
+    // amplitude axis
+    ctx.textAlign='right'; ctx.textBaseline='middle';
+    const as = niceStep(maxA, 3);
+    for(let v=0; v<=maxA+1e-9; v+=as){ const y=ay(v); ctx.strokeStyle=v===0?theme.rule:theme.grid; ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke(); ctx.fillStyle=theme.muted; ctx.fillText(+v.toFixed(2), x0-8, y); }
+    [-180,-90,0,90,180].forEach(v=>{ const y=py(v); ctx.strokeStyle=v===0?theme.rule:theme.grid; ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke(); ctx.fillStyle=theme.muted; ctx.fillText(v+'°', x0-8, y); });
+    ctx.textAlign='left'; ctx.textBaseline='bottom'; ctx.fillStyle=theme.muted;
+    ctx.fillText('Amplitude A', x0+4, aTop+10);
+    ctx.fillText('Phase φ', x0+4, pTop+10);
+
+    comps.forEach((c,i)=>{
+      const x = fx(c.f);
+      ctx.globalAlpha = c.on ? 1 : .3;
+      ctx.strokeStyle = colOf(i); ctx.fillStyle = colOf(i); ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.moveTo(x,ay(0)); ctx.lineTo(x,ay(c.A)); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x,ay(c.A),4,0,TAU); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x,py(0)); ctx.lineTo(x,py(c.ph)); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x,py(c.ph),3.5,0,TAU); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  let last = performance.now();
+  function frame(now){
+    const dt = Math.min(0.1, (now-last)/1000); last = now;
+    if(state.playing) state.t += dt*state.speed;
+    drawPhasor(); drawParts(); drawSpec();
+    requestAnimationFrame(frame);
+  }
+
+  state.t = state.T; // start with a full window of history
+  applyPreset('square');
+  if(reduce) setPlaying(false);
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
