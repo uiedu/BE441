@@ -1,0 +1,373 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Hybrid Stepper Microstepping</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: lab-bench instrument — large motor cross-section left, control/readout rail right, air-gap and current traces below */
+:root{
+  --bg:#eceff2; --surface:#f8f9fa; --fg:#15202b; --muted:#56636f; --line:#d3d9df;
+  --steel:#a7b1ba; --steel-dark:#6c7884; --rotor:#c7cdd3;
+  --north:#cf3f33; --south:#2b68c9; --phaseA:#b9760c; --phaseB:#22895a; --accent:#2b68c9;
+  --font-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --font-body:"Barlow","Segoe UI",Helvetica,Arial,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e141a; --surface:#151d25; --fg:#e2e8ee; --muted:#8f9ca8; --line:#26323d;
+  --steel:#4a5663; --steel-dark:#2b353f; --rotor:#5e6974;
+  --north:#ff6a5c; --south:#5e9cff; --phaseA:#f0a53c; --phaseB:#4cc68b; --accent:#5e9cff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e141a; --surface:#151d25; --fg:#e2e8ee; --muted:#8f9ca8; --line:#26323d;
+  --steel:#4a5663; --steel-dark:#2b353f; --rotor:#5e6974;
+  --north:#ff6a5c; --south:#5e9cff; --phaseA:#f0a53c; --phaseB:#4cc68b; --accent:#5e9cff; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+header{display:flex;flex-direction:column;gap:6px;max-width:68ch}
+.eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--font-display);font-weight:700;font-size:clamp(32px,5vw,48px);line-height:1;margin:0;text-wrap:balance;letter-spacing:.01em}
+h2{font-family:var(--font-display);font-weight:600;font-size:22px;margin:0;letter-spacing:.02em}
+p{margin:0}
+.lead{color:var(--muted);font-size:16px}
+.bench{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:820px){.bench{grid-template-columns:1fr}}
+.stage{min-width:0;display:flex;flex-direction:column;gap:10px}
+.stage canvas{width:100%;max-width:580px;aspect-ratio:1;align-self:center;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted);justify-content:center}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:2px;display:inline-block}
+.rail{min-width:0;display:flex;flex-direction:column;gap:18px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:18px}
+.field{display:flex;flex-direction:column;gap:6px}
+label,.lbl{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+select,button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:8px 10px}
+select{width:100%}
+button{cursor:pointer;font-weight:600;font-size:14px}
+button:hover{border-color:var(--steel-dark)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btns button{flex:1 1 auto}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.speedrow{display:flex;justify-content:space-between;align-items:baseline}
+.val{font-family:var(--font-mono);font-size:13px;font-variant-numeric:tabular-nums}
+.check{display:flex;gap:8px;align-items:center;font-size:14px}
+.check input{accent-color:var(--accent);width:16px;height:16px}
+.readout{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0;font-variant-numeric:tabular-nums}
+.readout dt{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);align-self:center}
+.readout dd{margin:0;font-family:var(--font-mono);font-size:14px;text-align:right}
+.ia{color:var(--phaseA)} .ib{color:var(--phaseB)}
+.phasorbox{display:flex;gap:14px;align-items:center}
+.phasorbox canvas{width:150px;height:150px;flex:none}
+.phasorbox p{font-size:13px;color:var(--muted);min-width:0}
+section.panel{display:flex;flex-direction:column;gap:10px}
+section.panel .sub{color:var(--muted);font-size:14px;max-width:72ch}
+.plot{width:100%;display:block;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+@media (max-width:820px){.notes{grid-template-columns:1fr}}
+.notes div{display:flex;flex-direction:column;gap:6px;border-top:2px solid var(--fg);padding-top:10px}
+.notes h3{font-family:var(--font-display);font-weight:600;font-size:19px;margin:0}
+.notes p{font-size:14.5px;color:var(--muted)}
+.mono{font-family:var(--font-mono);font-size:.92em}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">2-phase bipolar · 50 rotor teeth · 8 stator poles</span>
+    <h1>Instrumentation and Controls: Hybrid Stepper Microstepping</h1>
+    <p class="lead">The driver sets the two winding currents as sine and cosine of an electrical angle. The rotor follows that angle at 1/50 scale, so one electrical cycle moves the shaft one tooth pitch, 7.2°.</p>
+  </header>
+
+  <div class="bench">
+    <div class="stage">
+      <canvas id="motor" role="img" aria-label="Cross-section of a hybrid stepper motor with 8 stator poles and a 50-tooth rotor, animated as the phase currents change"></canvas>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--north)"></i>Pole face N (pulls rotor S-cup teeth)</span>
+        <span><i class="sw" style="background:var(--south)"></i>Pole face S</span>
+        <span><i class="sw" style="background:var(--phaseA)"></i>Phase A coil</span>
+        <span><i class="sw" style="background:var(--phaseB)"></i>Phase B coil</span>
+        <span><i class="sw" style="background:var(--accent)"></i>Reference tooth / commanded angle ▼</span>
+      </div>
+    </div>
+
+    <aside class="rail">
+      <div class="field">
+        <label for="mode">Drive mode</label>
+        <select id="mode">
+          <option value="wave" selected>Full step, wave drive (1 phase on)</option>
+          <option value="half">Half step</option>
+          <option value="m4">1/4 microstep</option>
+          <option value="m8">1/8 microstep</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="speedrow"><label for="speed">Shaft speed</label><span class="val" id="speedVal"></span></div>
+        <input type="range" id="speed" min="0" max="100" value="0">
+        <span class="val" id="rateVal" style="color:var(--muted);font-size:12px"></span>
+      </div>
+      <div class="btns">
+        <button id="play" class="primary">Pause</button>
+        <button id="back" aria-label="One step backward">◂ Step</button>
+        <button id="fwd" aria-label="One step forward">Step ▸</button>
+        <button id="dir">Reverse</button>
+        <button id="zero">Reset</button>
+      </div>
+      <div class="field">
+        <div class="speedrow"><label for="inertia">Rotor + load inertia</label><span class="val" id="inertiaVal"></span></div>
+        <input type="range" id="inertia" min="0" max="100" value="0">
+        <span class="val" id="inertiaInfo" style="color:var(--muted);font-size:12px"></span>
+      </div>
+
+      <dl class="readout">
+        <dt>Microstep</dt><dd id="rStep"></dd>
+        <dt>Steps / rev</dt><dd id="rSpr"></dd>
+        <dt>Resolution</dt><dd id="rRes"></dd>
+        <dt>Electrical φ</dt><dd id="rPhi"></dd>
+        <dt>Commanded shaft</dt><dd id="rCmd"></dd>
+        <dt>Rotor shaft</dt><dd id="rAct"></dd>
+        <dt>Following error</dt><dd id="rErr"></dd>
+        <dt class="ia">I<sub>A</sub></dt><dd id="rIa" class="ia"></dd>
+        <dt class="ib">I<sub>B</sub></dt><dd id="rIb" class="ib"></dd>
+        <dt>|I|</dt><dd id="rIm"></dd>
+      </dl>
+
+      <div class="field">
+        <span class="lbl">Microstep current in each coil</span>
+        <canvas id="wave" class="plot" role="img" aria-label="Phase A and phase B coil current waveforms with a cursor at the present position"></canvas>
+        <span style="color:var(--muted);font-size:12.5px">Staircase: commanded coil current. Dashed: ideal sine and cosine. One electrical cycle = 4 full steps = 7.2° of shaft. Cursor marks the present step.</span>
+      </div>
+
+    </aside>
+  </div>
+
+  <section class="panel">
+    <h2>Air gap, unrolled</h2>
+    <p class="sub">Poles A+, B+, A−, B− sit 45° apart, which is 6.25 tooth pitches. Each pole's teeth are offset a quarter pitch from the previous pole's, so moving the magnetic pull from one pole to the next shifts the rotor 7.2° / 4 = 1.8°. Microstepping splits the pull between two poles to park the rotor in between.</p>
+    <canvas id="gap" class="plot" role="img" aria-label="Unrolled view of stator and rotor teeth under four poles"></canvas>
+  </section>
+
+  <div class="notes">
+    <div><h3>Why 1.8° per full step</h3><p>The rotor has 50 teeth on a 7.2° pitch. Energizing poles in the order A+, B+, A−, B− moves the attraction a quarter pitch each time: 360° / (4 × 50) = 1.8°, or 200 full steps per revolution.</p></div>
+    <div><h3>What microstepping does</h3><p>The driver sets I<sub>A</sub> = I cos φ and I<sub>B</sub> = I sin φ. Torque equilibrium sits at electrical angle φ, so the shaft angle is φ / 50. At 1/8 that gives 1,600 positions per revolution, 0.225° each.</p></div>
+    <div><h3>Limits in a real motor</h3><p>Smaller current jumps excite far less ringing near the resonant step rate. Absolute accuracy is another matter: detent torque and non-sinusoidal torque curves make microstep positions uneven, and the holding torque gained per microstep scales with sin(90°/n).</p></div>
+  </div>
+</div>
+
+<script>
+(()=>{
+const D2R=Math.PI/180, TAU=Math.PI*2;
+const MODES={
+  wave:{spf:1,phi0:0,cur:p=>[Math.round(Math.cos(p)),Math.round(Math.sin(p))]},
+  half:{spf:2,phi0:0,cur:p=>{const c=Math.cos(p),s=Math.sin(p);return[Math.abs(c)<.3?0:Math.sign(c),Math.abs(s)<.3?0:Math.sign(s)]}},
+  m4:{spf:4,phi0:0,cur:p=>[Math.cos(p),Math.sin(p)]},
+  m8:{spf:8,phi0:0,cur:p=>[Math.cos(p),Math.sin(p)]}
+};
+const $=id=>document.getElementById(id);
+let mode=MODES.wave, k=0, x=0, v=0, acc=0, dir=1;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let running=!reduce;
+const delta=()=>(Math.PI/2)/mode.spf;
+const phiOf=kk=>mode.phi0+kk*delta();
+const cur=()=>mode.cur(phiOf(k));
+const rpm=()=>0.2*Math.pow(300,$('speed').value/100);
+
+// rotor dynamics: torque = Kt (Ib cos x - Ia sin x) in electrical radians
+const W0=TAU*4.5, KT=W0*W0, C=2*0.09*W0;
+
+let T={};
+function tokens(){const s=getComputedStyle(document.documentElement);
+  ['bg','surface','fg','muted','line','steel','steel-dark','rotor','north','south','phaseA','phaseB','accent','font-mono'].forEach(n=>T[n]=s.getPropertyValue('--'+n).trim());}
+function rgba(hex,a){let h=hex.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');
+  const n=parseInt(h,16);return`rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;}
+function setup(cv,w,h){const dpr=Math.min(devicePixelRatio||1,2);cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);
+  cv.style.height=h+'px';const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);return{ctx,w,h};}
+let M,G,Wv,P;
+function layout(){
+  const mc=$('motor');const mw=mc.getBoundingClientRect().width;M=setup(mc,mw,mw);
+  const gw=$('gap').getBoundingClientRect().width;G=setup($('gap'),gw,gw<520?200:170);
+  const ww=$('wave').getBoundingClientRect().width;Wv=setup($('wave'),ww,180);
+}
+
+// ---------- motor cross-section ----------
+function polar(cx,cy,r,deg){const a=(deg-90)*D2R;return[cx+r*Math.cos(a),cy+r*Math.sin(a)];}
+function drawMotor(ia,ib){
+  const {ctx,w:S}=M;const cx=S/2,cy=S/2;ctx.clearRect(0,0,S,S);
+  const R2=.30*S,R1=R2-.02*S,Rf=R2+.006*S,td=.016*S,shoe=.045*S,Ryi=.405*S,Ryo=.47*S;
+  const drive=[ia,ib,-ia,-ib];const names=['A+','B+','A−','B−'];
+  // yoke
+  ctx.beginPath();ctx.arc(cx,cy,Ryo,0,TAU);ctx.arc(cx,cy,Ryi,0,TAU,true);
+  ctx.fillStyle=T.steel;ctx.fill('evenodd');ctx.strokeStyle=T['steel-dark'];ctx.lineWidth=1;ctx.stroke();
+  for(let p=0;p<8;p++){
+    const a0=45*p,d=drive[p%4];
+    const pts=[];const add=(da,r)=>pts.push(polar(cx,cy,r,a0+da));
+    add(-18,Rf+td);
+    for(let j=-2;j<=2;j++){const c=j*7.2;add(c-1.8,Rf+td);add(c-1.8,Rf);add(c+1.8,Rf);add(c+1.8,Rf+td);}
+    add(18,Rf+td);add(18,Rf+td+shoe);add(9,Rf+td+shoe);
+    for(let r=Rf+td+shoe;r<=Ryi+2;r+=(Ryi+2-(Rf+td+shoe))/4)add(9,r);
+    add(-9,Ryi+2);add(-9,Rf+td+shoe);add(-18,Rf+td+shoe);
+    ctx.beginPath();pts.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath();
+    ctx.fillStyle=T.steel;ctx.fill();
+    if(Math.abs(d)>.01){ctx.fillStyle=rgba(d>0?T.north:T.south,.18+.7*Math.min(1,Math.abs(d)));ctx.fill();}
+    ctx.strokeStyle=T['steel-dark'];ctx.stroke();
+    // coils on each side of the pole body
+    const ph=p%2===0?T.phaseA:T.phaseB, iabs=Math.abs(p%2===0?ia:ib);
+    for(const s of[-1,1]){
+      const rA=Rf+td+shoe+.012*S,rB=Ryi-.008*S;
+      ctx.beginPath();const q1=polar(cx,cy,rA,a0+s*9.5),q2=polar(cx,cy,rB,a0+s*9.5),q3=polar(cx,cy,rB,a0+s*15.5),q4=polar(cx,cy,rA,a0+s*17);
+      ctx.moveTo(...q1);ctx.lineTo(...q2);ctx.lineTo(...q3);ctx.lineTo(...q4);ctx.closePath();
+      ctx.fillStyle=rgba(ph,.15+.8*iabs);ctx.fill();ctx.strokeStyle=rgba(ph,.9);ctx.lineWidth=1;ctx.stroke();
+    }
+    // labels
+    ctx.font=`600 ${Math.max(10,S*.024)}px ${T['font-mono']}`;ctx.textAlign='center';ctx.textBaseline='middle';
+    const lp=polar(cx,cy,(Ryi+Ryo)/2,a0);ctx.fillStyle=T.fg;ctx.fillText(names[p%4],lp[0],lp[1]);
+    if(Math.abs(d)>.01){const sp=polar(cx,cy,Rf+td+shoe*.55,a0);ctx.font=`700 ${Math.max(9,S*.02)}px ${T['font-mono']}`;
+      ctx.fillStyle='#fff';ctx.fillText(d>0?'N':'S',sp[0],sp[1]);}
+  }
+  // rotor
+  const th=x/50/D2R; // mechanical degrees
+  ctx.beginPath();
+  for(let i=0;i<50;i++){const c=th+i*7.2;
+    const a=polar(cx,cy,R1,c-3.6),b=polar(cx,cy,R1,c-1.8),e=polar(cx,cy,R2,c-1.8),f=polar(cx,cy,R2,c+1.8),g=polar(cx,cy,R1,c+1.8);
+    i?ctx.lineTo(...a):ctx.moveTo(...a);ctx.lineTo(...b);ctx.lineTo(...e);ctx.lineTo(...f);ctx.lineTo(...g);}
+  ctx.closePath();ctx.fillStyle=T.rotor;ctx.fill();ctx.fillStyle=rgba(T.south,.12);ctx.fill();
+  ctx.strokeStyle=T['steel-dark'];ctx.lineWidth=1;ctx.stroke();
+  // reference tooth
+  ctx.beginPath();[polar(cx,cy,R1,th-1.8),polar(cx,cy,R2,th-1.8),polar(cx,cy,R2,th+1.8),polar(cx,cy,R1,th+1.8)].forEach((q,i)=>i?ctx.lineTo(...q):ctx.moveTo(...q));
+  ctx.closePath();ctx.fillStyle=T.accent;ctx.fill();
+  // magnet ring + shaft
+  ctx.beginPath();ctx.arc(cx,cy,R1*.62,0,TAU);ctx.strokeStyle=rgba(T.fg,.18);ctx.setLineDash([3,4]);ctx.stroke();ctx.setLineDash([]);
+  ctx.beginPath();ctx.arc(cx,cy,.06*S,0,TAU);ctx.fillStyle=T.steel;ctx.fill();ctx.strokeStyle=T['steel-dark'];ctx.stroke();
+  const tip=polar(cx,cy,R1*.9,th);ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(...tip);ctx.strokeStyle=T.accent;ctx.lineWidth=2.5;ctx.stroke();
+  ctx.lineWidth=1;
+  ctx.font=`600 ${Math.max(10,S*.022)}px ${T['font-mono']}`;ctx.fillStyle=T.muted;ctx.textAlign='center';
+  const nl=polar(cx,cy,R1*.42,th+180);ctx.fillText('S cup',nl[0],nl[1]);
+  // commanded angle marker
+  const cmd=phiOf(k)/50/D2R;const m1=polar(cx,cy,Ryo+2,cmd),m2=polar(cx,cy,Ryo+.028*S,cmd-1.6),m3=polar(cx,cy,Ryo+.028*S,cmd+1.6);
+  ctx.beginPath();ctx.moveTo(...m1);ctx.lineTo(...m2);ctx.lineTo(...m3);ctx.closePath();ctx.fillStyle=T.accent;ctx.fill();
+}
+
+// ---------- unrolled air gap ----------
+function drawGap(ia,ib){
+  const {ctx,w,h}=G;ctx.clearRect(0,0,w,h);
+  const narrow=w<520, cols=narrow?2:4, rows=narrow?2:1;
+  const pw=w/cols, ph=h/rows, th=x/50/D2R;
+  const drive=[ia,ib,-ia,-ib], names=['A+  pole 1','B+  pole 2','A−  pole 3','B−  pole 4'], offs=['0','¼','½','¾'];
+  for(let p=0;p<4;p++){
+    const ox=(p%cols)*pw, oy=Math.floor(p/cols)*ph, cxp=ox+pw/2, pitch=pw/6.2, d=drive[p];
+    ctx.save();ctx.beginPath();ctx.rect(ox+4,oy,pw-8,ph);ctx.clip();
+    const top=oy+ph*.28, sh=ph*.24, gapY=top+sh+3, rh=ph*.24;
+    ctx.font=`500 11px ${T['font-mono']}`;ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle=T.muted;
+    ctx.fillText(names[p],ox+10,oy+8);ctx.textAlign='right';ctx.fillText(`offset ${offs[p]} pitch`,ox+pw-10,oy+8);
+    const col=Math.abs(d)>.01?rgba(d>0?T.north:T.south,.2+.75*Math.min(1,Math.abs(d))):T.steel;
+    for(let j=-2;j<=2;j++){const xc=cxp+j*pitch;ctx.fillStyle=T.steel;ctx.fillRect(xc-pitch/4,top,pitch/2,sh);ctx.fillStyle=col;ctx.fillRect(xc-pitch/4,top,pitch/2,sh);}
+    ctx.fillStyle=T.steel;ctx.fillRect(cxp-2.6*pitch,top-6,5.2*pitch,6);
+    // rotor teeth
+    let u=(th-45*p)/7.2;u=u-Math.round(u);
+    ctx.fillStyle=T.rotor;ctx.fillRect(ox,gapY+rh,pw,5);
+    for(let j=-5;j<=5;j++){const xc=cxp+(u+j)*pitch;ctx.fillStyle=T.rotor;ctx.fillRect(xc-pitch/4,gapY,pitch/2,rh);}
+    // alignment readout
+    const off=Math.abs(u);ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillStyle=off<.02?T.accent:T.muted;ctx.font=`500 11px ${T['font-mono']}`;
+    ctx.fillText(off<.02?'teeth aligned':`${off.toFixed(2)} pitch apart`,cxp,oy+ph-4);
+    ctx.restore();
+    if(p%cols) {ctx.strokeStyle=T.line;ctx.beginPath();ctx.moveTo(ox,oy+6);ctx.lineTo(ox,oy+ph-6);ctx.stroke();}
+  }
+  if(rows>1){ctx.strokeStyle=T.line;ctx.beginPath();ctx.moveTo(8,ph);ctx.lineTo(w-8,ph);ctx.stroke();}
+}
+
+// ---------- current waveforms ----------
+function drawWave(){
+  const {ctx,w,h}=Wv;ctx.clearRect(0,0,w,h);
+  const L=42,R=w-14,Tp=22,B=h-38;const X=a=>L+(R-L)*a/360, Y=i=>Tp+(B-Tp)*(1.5-i)/3;
+  ctx.font=`11px ${T['font-mono']}`;ctx.lineWidth=1;
+  for(const i of[-1,0,1]){ctx.strokeStyle=i?T.line:rgba(T.fg,.3);ctx.beginPath();ctx.moveTo(L,Y(i));ctx.lineTo(R,Y(i));ctx.stroke();
+    ctx.fillStyle=T.muted;ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(i===0?'0':(i>0?'+I':'−I'),L-6,Y(i));}
+  for(let q=0;q<=4;q++){const xx=X(q*90);ctx.strokeStyle=T.line;ctx.beginPath();ctx.moveTo(xx,Tp);ctx.lineTo(xx,B);ctx.stroke();
+    ctx.fillStyle=T.muted;ctx.textAlign=q===0?'left':q===4?'right':'center';ctx.textBaseline='top';
+    ctx.fillText(`${q*90}° e`,xx,B+5);ctx.fillText(`${(q*1.8).toFixed(1)}° shaft`,xx,B+19);}
+  const dl=delta()/D2R, p0=mode.phi0/D2R;
+  const val=(a,idx)=>{const kk=Math.floor((a-p0)/dl+1e-9);return mode.cur((p0+kk*dl)*D2R)[idx];};
+  [[0,T.phaseA,Math.cos],[1,T.phaseB,Math.sin]].forEach(([idx,col,f])=>{
+    ctx.setLineDash([4,4]);ctx.strokeStyle=rgba(col,.5);ctx.beginPath();
+    for(let a=0;a<=360;a+=2){const yy=Y(f(a*D2R));a?ctx.lineTo(X(a),yy):ctx.moveTo(X(a),yy);}ctx.stroke();ctx.setLineDash([]);
+    ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();let prev=null;
+    for(let a=0;a<=360;a+=.25){const vv=val(a,idx);const xx=X(a),yy=Y(vv);if(prev===null)ctx.moveTo(xx,yy);else if(vv!==prev){ctx.lineTo(xx,Y(prev));ctx.lineTo(xx,yy);}prev=vv;}
+    ctx.lineTo(X(360),Y(prev));ctx.stroke();ctx.lineWidth=1;
+  });
+  ctx.textAlign='left';ctx.textBaseline='top';ctx.font=`600 11px ${T['font-mono']}`;
+  ctx.fillStyle=T.phaseA;ctx.fillText('IA',L+6,4);ctx.fillStyle=T.phaseB;ctx.fillText('IB',L+34,4);
+  const cphi=((phiOf(k)/D2R)%360+360)%360;ctx.strokeStyle=T.accent;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(X(cphi),Tp-4);ctx.lineTo(X(cphi),B);ctx.stroke();ctx.lineWidth=1;
+}
+
+// ---------- phasor ----------
+function drawPhasor(ia,ib){
+  const {ctx,w}=P;ctx.clearRect(0,0,w,w);const c=w/2,r=w*.31;
+  ctx.strokeStyle=T.line;ctx.beginPath();ctx.moveTo(6,c);ctx.lineTo(w-6,c);ctx.moveTo(c,6);ctx.lineTo(c,w-6);ctx.stroke();
+  ctx.setLineDash([3,3]);ctx.strokeStyle=rgba(T.fg,.35);ctx.beginPath();ctx.arc(c,c,r,0,TAU);ctx.stroke();ctx.setLineDash([]);
+  ctx.font=`600 10px ${T['font-mono']}`;ctx.fillStyle=T.phaseA;ctx.textAlign='right';ctx.textBaseline='bottom';ctx.fillText('IA',w-4,c-3);
+  ctx.fillStyle=T.phaseB;ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('IB',c+4,2);
+  const n=4*mode.spf;for(let i=0;i<n;i++){const [a,b]=mode.cur(phiOf(i));ctx.fillStyle=rgba(T.muted,.8);ctx.beginPath();ctx.arc(c+a*r,c-b*r,n>64?1:1.6,0,TAU);ctx.fill();}
+  ctx.beginPath();ctx.arc(c+Math.cos(x)*r,c-Math.sin(x)*r,6,0,TAU);ctx.strokeStyle=T.fg;ctx.lineWidth=1.5;ctx.stroke();
+  const ex=c+ia*r,ey=c-ib*r,ang=Math.atan2(ey-c,ex-c);
+  ctx.strokeStyle=T.accent;ctx.fillStyle=T.accent;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(c,c);ctx.lineTo(ex,ey);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(ex-9*Math.cos(ang-.4),ey-9*Math.sin(ang-.4));ctx.lineTo(ex-9*Math.cos(ang+.4),ey-9*Math.sin(ang+.4));ctx.closePath();ctx.fill();
+  ctx.lineWidth=1;
+}
+
+// ---------- readouts ----------
+const mod=(a,m)=>((a%m)+m)%m;
+const sgn=(n,d)=>(n>=0?'+':'−')+Math.abs(n).toFixed(d);
+function readouts(ia,ib){
+  const spr=200*mode.spf;
+  $('rStep').textContent=`${mod(k,spr)} / ${spr}`;
+  $('rSpr').textContent=spr.toLocaleString();
+  $('rRes').textContent=`${(1.8/mode.spf).toFixed(mode.spf>8?4:3)}°`;
+  $('rPhi').textContent=`${mod(phiOf(k)/D2R,360).toFixed(2)}°`;
+  $('rCmd').textContent=`${mod(phiOf(k)/D2R/50,360).toFixed(4)}°`;
+  $('rAct').textContent=`${mod(x/D2R/50,360).toFixed(4)}°`;
+  const e=(x-phiOf(k))/D2R/50;$('rErr').textContent=`${sgn(e,4)}° (${sgn(e/1.8,2)} step)`;
+  $('rIa').textContent=`${sgn(ia*100,1)} %`;$('rIb').textContent=`${sgn(ib*100,1)} %`;
+  $('rIm').textContent=`${(Math.hypot(ia,ib)*100).toFixed(1)} %`;
+  const s=+$('inertia').value;
+  if(s>0){const J=0.1*Math.pow(50,(s-1)/99);$('inertiaVal').textContent=`${J.toFixed(2)} × nominal`;
+    $('inertiaInfo').textContent=`natural freq ≈ ${(4.5/Math.sqrt(J)).toFixed(1)} Hz · damping ratio ${(0.09/Math.sqrt(J)).toFixed(3)}`;}
+  else{$('inertiaVal').textContent='none';$('inertiaInfo').textContent='rotor snaps to each commanded position';}
+  const r=rpm();$('speedVal').textContent=`${r<10?r.toFixed(2):r.toFixed(1)} rpm`;
+  $('rateVal').textContent=`${(r/60*spr).toFixed(r/60*spr<10?2:0)} steps/s · ${(r/60*200).toFixed(2)} full-step equiv/s`;
+}
+
+// ---------- loop ----------
+let last=performance.now();
+function frame(now){
+  let dt=Math.min(.05,(now-last)/1000);last=now;
+  const s=+$('inertia').value, inertia=s>0, J=0.1*Math.pow(50,(s-1)/99);
+  const n=Math.max(1,Math.ceil(dt/.0005)),h=dt/n,sps=rpm()/60*200*mode.spf;
+  for(let s=0;s<n;s++){
+    if(running){acc+=h*sps;let guard=0;while(acc>=1&&guard++<200){k+=dir;acc-=1;}}
+    if(inertia){const [ia,ib]=cur();const tq=KT*(ib*Math.cos(x)-ia*Math.sin(x))-C*v;v+=tq/J*h;x+=v*h;}
+  }
+  if(!inertia){x=phiOf(k);v=0;}
+  const [ia,ib]=cur();
+  drawMotor(ia,ib);drawGap(ia,ib);drawWave();readouts(ia,ib);
+  requestAnimationFrame(frame);
+}
+
+// ---------- controls ----------
+function setPlay(){ $('play').textContent=running?'Pause':'Play'; }
+$('play').onclick=()=>{running=!running;setPlay();};
+$('fwd').onclick=()=>{running=false;setPlay();k+=1;};
+$('back').onclick=()=>{running=false;setPlay();k-=1;};
+$('dir').onclick=()=>{dir=-dir;$('dir').textContent=dir>0?'Reverse':'Forward';};
+$('zero').onclick=()=>{k=0;x=phiOf(0);v=0;acc=0;};
+$('mode').onchange=e=>{const phi=phiOf(k);mode=MODES[e.target.value];k=Math.round((phi-mode.phi0)/delta());acc=0;};
+new ResizeObserver(layout).observe(document.querySelector('.wrap'));
+const mq=matchMedia('(prefers-color-scheme: dark)');mq.addEventListener?.('change',tokens);
+new MutationObserver(tokens).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+tokens();layout();setPlay();x=phiOf(k);
+if(document.fonts)document.fonts.ready.then(tokens);
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
