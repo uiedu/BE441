@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glucose–Insulin Dynamics</title>
+<style>
+  :root {
+    --bg: #f6f6f3; --panel: #ffffff; --ink: #1b1b1b; --muted: #676767;
+    --grid: #e6e6e2; --axis: #8a8a8a; --border: #dcdcd8;
+    --g: #0072bd; --h: #d95319; --accent: #2a62c9;
+    --ok: #2e8b57; --warn: #c77700; --lhp: rgba(46,139,87,0.07); --rec: #c62828;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131313; --panel: #1c1c1c; --ink: #ececec; --muted: #9a9a9a;
+      --grid: #2c2c2c; --axis: #777; --border: #333;
+      --g: #4fa8e8; --h: #ff8a4c; --accent: #6d9dff;
+      --ok: #5cc98a; --warn: #f0a640; --lhp: rgba(92,201,138,0.08); --rec: #ff6b6b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 19px; margin: 0 0 10px; font-weight: 650; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; }
+  h2 { font-size: 12.5px; font-weight: 650; color: var(--muted); margin: 0 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+  .gc { color: var(--g); } .hc { color: var(--h); }
+  .model { display: flex; flex-wrap: wrap; gap: 8px 40px; align-items: flex-start; }
+  .eq { font-family: "Cambria Math", "STIX Two Math", Georgia, serif; font-size: 17px; line-height: 1.8; }
+  .eq .live { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+  .main { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(260px, 1fr); gap: 12px; margin-top: 12px; }
+  #cv { width: 100%; height: 420px; display: block; border-radius: 6px; }
+  #pp { width: 100%; height: 220px; display: block; }
+  #pz { width: 100%; height: 140px; display: block; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-weight: 650; font-size: 12.5px; color: #fff; margin: 0 0 6px; }
+  .stats { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13px; margin: 0 0 8px; }
+  .stats dt { color: var(--muted); } .stats dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .ctl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  .row { display: grid; grid-template-columns: 70px 1fr 92px; gap: 8px; align-items: center; margin: 5px 0; font-size: 13.5px; }
+  .row > label:first-child { color: var(--muted); text-align: right; }
+  .row.k > label:first-child { color: var(--ink); font-weight: 700; }
+  .row .v { font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--panel); border: 1px solid var(--border);
+          border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+  .chip:hover { border-color: var(--accent); }
+  .check { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); margin: 6px 0; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 10px; }
+  .bar input[type=range] { flex: 1 1 260px; }
+  button.btn { font: inherit; font-weight: 650; font-size: 14px; color: #fff; background: var(--accent); border: 0; border-radius: 6px;
+               padding: 7px 16px; cursor: pointer; min-width: 80px; }
+  button.btn.rec { background: var(--rec); }
+  button.btn:disabled { opacity: .5; cursor: default; }
+  select { font: inherit; font-size: 13px; color: var(--ink); background: var(--panel); border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; }
+  .tval { font-variant-numeric: tabular-nums; font-size: 13.5px; min-width: 92px; }
+  .msg { font-size: 12px; color: var(--rec); margin-top: 6px; }
+  .msg:empty { display: none; }
+  @media (max-width: 760px) { .main, .ctl { grid-template-columns: 1fr; } #cv { height: 340px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Glucose and insulin dynamics</h1>
+
+  <div class="card model">
+    <div>
+      <h2>Model</h2>
+      <div class="eq">
+        <div><span class="gc">dg/dt</span> + A·<span class="gc">g</span> = −B·<span class="hc">h</span></div>
+        <div><span class="hc">dh/dt</span> + D·<span class="hc">h</span> = C·<span class="gc">g</span></div>
+      </div>
+    </div>
+    <div>
+      <h2>Second-order equation for glucose</h2>
+      <div class="eq">
+        <div><span class="gc">g″</span> + (A+D)·<span class="gc">g′</span> + (AD+BC)·<span class="gc">g</span> = 0</div>
+        <div class="live" id="liveEq"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="card">
+      <canvas id="cv" aria-label="Animated glucose and insulin response"></canvas>
+      <div class="bar">
+        <button class="btn" id="play">Play</button>
+        <input id="sTime" type="range" min="0" max="1000" step="1" value="0" aria-label="Time">
+        <span class="tval" id="vTime"></span>
+        <label style="font-size:13px;color:var(--muted)">Speed
+          <select id="speed">
+            <option value="1">1 h/s</option><option value="2">2 h/s</option><option value="4" selected>4 h/s</option>
+            <option value="8">8 h/s</option><option value="16">16 h/s</option>
+          </select></label>
+        <button class="btn rec" id="rec">● Record video</button>
+      </div>
+      <p class="msg" id="recMsg"></p>
+    </div>
+
+    <div class="card">
+      <h2>Response type</h2>
+      <span class="badge" id="badge"></span>
+      <dl class="stats">
+        <dt>ζ</dt><dd id="sZ"></dd>
+        <dt>ωₙ</dt><dd id="sWn"></dd>
+        <dt>Ringing period</dt><dd id="sP"></dd>
+        <dt>Settling (2%)</dt><dd id="sTs"></dd>
+        <dt>Poles</dt><dd id="sPo"></dd>
+      </dl>
+      <h2>Phase plane</h2>
+      <canvas id="pp" aria-label="Insulin versus glucose trajectory"></canvas>
+      <h2 style="margin-top:8px">Poles</h2>
+      <canvas id="pz" aria-label="Poles in the s-plane"></canvas>
+    </div>
+  </div>
+
+  <div class="ctl">
+    <div class="card">
+      <h2>Coefficients</h2>
+      <div class="row k"><label for="sA">A</label><input id="sA" type="range" min="0" max="1" step="0.001"><span class="v" id="vA"></span></div>
+      <div class="row k"><label for="sB">B</label><input id="sB" type="range" min="0" max="1" step="0.001"><span class="v" id="vB"></span></div>
+      <div class="row k"><label for="sC">C</label><input id="sC" type="range" min="0" max="1" step="0.001"><span class="v" id="vC"></span></div>
+      <div class="row k"><label for="sD">D</label><input id="sD" type="range" min="0" max="1" step="0.001"><span class="v" id="vD"></span></div>
+      <div class="chips">
+        <button class="chip" data-p="reset">Reset</button>
+        <button class="chip" data-p="osc">Strongly oscillating</button>
+        <button class="chip" data-p="over">Overdamped</button>
+        <button class="chip" data-p="lowC">Low C</button>
+        <button class="chip" data-p="lowB">Low B</button>
+        <button class="chip" data-p="fastD">High D</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Initial conditions</h2>
+      <div class="row"><label for="sG0">g(0)</label><input id="sG0" type="range" min="-100" max="200" step="5" value="100"><span class="v" id="vG0"></span></div>
+      <div class="row"><label for="sH0">h(0)</label><input id="sH0" type="range" min="-100" max="100" step="5" value="0"><span class="v" id="vH0"></span></div>
+      <h2 style="margin-top:12px">Display</h2>
+      <div class="row"><label for="sDur">Duration</label><input id="sDur" type="range" min="12" max="168" step="1" value="72"><span class="v" id="vDur"></span></div>
+      <label class="check"><input type="checkbox" id="ghost" checked> Show full curves faintly</label>
+    </div>
+  </div>
+</main>
+
+<script>
+// ---------------- Model ----------------
+//   g' + A g = -B h
+//   h' + D h =  C g
+//   g'' + (A+D) g' + (AD+BC) g = 0
+const MAX = { A: 0.5, B: 2, C: 0.5, D: 1 };            // slider ranges (quadratic mapping, fine near 0)
+const DEFAULTS = { g0: 100, h0: 0 };
+const PRESETS = {
+  reset:  { A: 0.1,  B: 0.4,  C: 0.1,   D: 0.1 },     // denominator s^2 + 0.2 s + 0.05 (MATLAB model)
+  osc:    { A: 0.02, B: 0.8,  C: 0.2,   D: 0.02 },
+  over:   { A: 0.3,  B: 0.1,  C: 0.05,  D: 0.8 },
+  lowC:   { A: 0.1,  B: 0.4,  C: 0.005, D: 0.1 },
+  lowB:   { A: 0.1,  B: 0.02, C: 0.1,   D: 0.1 },
+  fastD:  { A: 0.1,  B: 0.4,  C: 0.1,   D: 0.6 },
+};
+const st = { ...PRESETS.reset, ...DEFAULTS, dur: 72, ghost: true, frac: 0, speed: 4 };
+let sim = null;
+
+function analysis() {
+  const { A, B, C, D } = st, a1 = A + D, a0 = A * D + B * C, wn = Math.sqrt(a0);
+  const zeta = wn > 0 ? a1 / (2 * wn) : Infinity, disc = a1 * a1 - 4 * a0;
+  const poles = disc >= 0
+    ? [{ re: (-a1 + Math.sqrt(disc)) / 2, im: 0 }, { re: (-a1 - Math.sqrt(disc)) / 2, im: 0 }]
+    : [{ re: -a1 / 2, im: Math.sqrt(-disc) / 2 }, { re: -a1 / 2, im: -Math.sqrt(-disc) / 2 }];
+  return { a1, a0, wn, zeta, disc, poles };
+}
+function simulate() {
+  const { A, B, C, D, dur } = st, { wn } = analysis();
+  let h = Math.min(0.05, 0.05 / Math.max(A, D, wn, 1e-3));
+  const steps = Math.ceil(dur / h); h = dur / steps;
+  const keep = Math.max(1, Math.ceil(steps / 8000));
+  let g = st.g0, x = st.h0;
+  const T = [0], G = [g], H = [x];
+  const fg = (g, x) => -A * g - B * x, fh = (g, x) => -D * x + C * g;
+  for (let i = 0; i < steps; i++) {      // RK4
+    const k1 = fg(g, x), l1 = fh(g, x);
+    const k2 = fg(g + h / 2 * k1, x + h / 2 * l1), l2 = fh(g + h / 2 * k1, x + h / 2 * l1);
+    const k3 = fg(g + h / 2 * k2, x + h / 2 * l2), l3 = fh(g + h / 2 * k2, x + h / 2 * l2);
+    const k4 = fg(g + h * k3, x + h * l3), l4 = fh(g + h * k3, x + h * l3);
+    g += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4);
+    x += h / 6 * (l1 + 2 * l2 + 2 * l3 + l4);
+    if ((i + 1) % keep === 0 || i === steps - 1) { T.push((i + 1) * h); G.push(g); H.push(x); }
+  }
+  let lo = 0, hi = 0, glo = 0, ghi = 0, hlo = 0, hhi = 0;
+  for (let i = 0; i < T.length; i++) {
+    lo = Math.min(lo, G[i], H[i]); hi = Math.max(hi, G[i], H[i]);
+    glo = Math.min(glo, G[i]); ghi = Math.max(ghi, G[i]); hlo = Math.min(hlo, H[i]); hhi = Math.max(hhi, H[i]);
+  }
+  const pad = 0.05 * Math.max(1, hi - lo);
+  sim = { T, G, H, yr: [lo - pad, hi + pad], gr: [glo, ghi], hr: [hlo, hhi] };
+}
+
+// ---------------- Helpers ----------------
+const $ = id => document.getElementById(id);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt = (v, p = 3) => String(parseFloat(v.toPrecision(p)));
+const niceStep = (range, target) => {
+  if (!(range > 0)) return 1;
+  const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p;
+  return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
+};
+const padRange = ([lo, hi], minSpan) => {
+  if (hi - lo < minSpan) { const c = (hi + lo) / 2; lo = c - minSpan / 2; hi = c + minSpan / 2; }
+  const p = 0.08 * (hi - lo); return [lo - p, hi + p];
+};
+function fit(cv) {
+  const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1, c = cv.getContext('2d');
+  cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); c.setTransform(d, 0, 0, d, 0, 0);
+}
+function idxAt(T, t) {
+  let lo = 0, hi = T.length - 1; if (t >= T[hi]) return hi;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (T[m] <= t) lo = m; else hi = m - 1; }
+  return lo;
+}
+function grid(c, x0, y0, w, h, xr, yr) {
+  const X = v => x0 + (v - xr[0]) / (xr[1] - xr[0]) * w, Y = v => y0 + (yr[1] - v) / (yr[1] - yr[0]) * h;
+  c.lineWidth = 1; c.fillStyle = css('--ink'); c.font = '11.5px system-ui, sans-serif';
+  const xs = niceStep(xr[1] - xr[0], Math.max(3, Math.round(w / 90)));
+  c.textAlign = 'center'; c.textBaseline = 'top';
+  for (let v = Math.ceil(xr[0] / xs) * xs; v <= xr[1] + 1e-9; v += xs) {
+    const px = Math.round(X(v)) + 0.5; c.strokeStyle = css('--grid');
+    c.beginPath(); c.moveTo(px, y0); c.lineTo(px, y0 + h); c.stroke();
+    c.fillText(fmt(v, 6), px, y0 + h + 5);
+  }
+  const ys = niceStep(yr[1] - yr[0], Math.max(2, Math.round(h / 45)));
+  c.textAlign = 'right'; c.textBaseline = 'middle';
+  for (let v = Math.ceil(yr[0] / ys) * ys; v <= yr[1] + 1e-9; v += ys) {
+    const py = Math.round(Y(v)) + 0.5; c.strokeStyle = css('--grid');
+    c.beginPath(); c.moveTo(x0, py); c.lineTo(x0 + w, py); c.stroke();
+    c.fillText(fmt(v, 6), x0 - 5, py);
+  }
+  c.strokeStyle = css('--axis'); c.strokeRect(x0 + 0.5, y0 + 0.5, w, h);
+  return { X, Y };
+}
+function nowValues() {
+  const { T, G, H } = sim, t = st.frac * st.dur, k = idxAt(T, t);
+  const f = k < T.length - 1 && T[k + 1] > T[k] ? (t - T[k]) / (T[k + 1] - T[k]) : 0;
+  const at = a => a[k] + (k < T.length - 1 ? f * (a[k + 1] - a[k]) : 0);
+  return { t, k, g: at(G), h: at(H) };
+}
+
+// ---------------- Main animated plot (also the video frame) ----------------
+const cv = $('cv'), ctx = cv.getContext('2d');
+function drawMain(now) {
+  const W = cv.clientWidth, Hh = cv.clientHeight, L = 60, R = 14, top = 34, B = 42, pw = W - L - R, ph = Hh - top - B;
+  ctx.fillStyle = css('--panel'); ctx.fillRect(0, 0, W, Hh);          // opaque background for video frames
+  const { T, G, H, yr } = sim;
+  const p = grid(ctx, L, top, pw, ph, [0, st.dur], yr);
+  ctx.fillStyle = css('--ink'); ctx.textAlign = 'center';
+  ctx.font = '600 15px system-ui, sans-serif'; ctx.textBaseline = 'top';
+  ctx.fillText(`Glucose and Insulin Dynamics.  t = ${now.t.toFixed(1)} h`, L + pw / 2, 8);
+  ctx.font = '12.5px system-ui, sans-serif'; ctx.textBaseline = 'bottom';
+  ctx.fillText('Time [h]', L + pw / 2, Hh - 3);
+  ctx.save(); ctx.translate(13, top + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = 'middle';
+  ctx.fillText('Glucose/Insulin Level', 0, 0); ctx.restore();
+
+  ctx.save(); ctx.beginPath(); ctx.rect(L, top, pw, ph); ctx.clip();
+  const y0 = Math.round(p.Y(0)) + 0.5;
+  ctx.strokeStyle = css('--axis'); ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(L, y0); ctx.lineTo(L + pw, y0); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = css('--muted'); ctx.font = '12px system-ui, sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+  ctx.fillText('Fasting Level', L + pw - 6, y0 - 3);
+  const path = (arr, upto, endV) => {
+    ctx.beginPath(); ctx.moveTo(p.X(T[0]), p.Y(arr[0]));
+    for (let i = 1; i <= upto; i++) ctx.lineTo(p.X(T[i]), p.Y(arr[i]));
+    if (endV !== undefined) ctx.lineTo(p.X(now.t), p.Y(endV));
+  };
+  ctx.lineJoin = 'round';
+  if (st.ghost) {
+    ctx.globalAlpha = 0.22; ctx.lineWidth = 1.2;
+    ctx.strokeStyle = css('--g'); path(G, T.length - 1); ctx.stroke();
+    ctx.strokeStyle = css('--h'); path(H, T.length - 1); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  ctx.lineWidth = 2.2;
+  ctx.strokeStyle = css('--g'); path(G, now.k, now.g); ctx.stroke();
+  ctx.strokeStyle = css('--h'); path(H, now.k, now.h); ctx.stroke();
+  const dot = (v, col) => { ctx.fillStyle = col; ctx.strokeStyle = css('--ink'); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(p.X(now.t), p.Y(v), 4.5, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); };
+  dot(now.g, css('--g')); dot(now.h, css('--h'));
+  ctx.restore();
+  const lx = L + pw - 150, ly = top + 22;
+  ctx.fillStyle = css('--panel'); ctx.strokeStyle = css('--border'); ctx.lineWidth = 1;
+  ctx.fillRect(lx, ly, 140, 48); ctx.strokeRect(lx + 0.5, ly + 0.5, 140, 48);
+  ctx.font = '12.5px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  [[css('--g'), `g(t)  ${now.g.toFixed(1)}`], [css('--h'), `h(t)  ${now.h.toFixed(1)}`]].forEach(([c, txt], i) => {
+    const yy = ly + 14 + i * 20; ctx.strokeStyle = c; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(lx + 10, yy); ctx.lineTo(lx + 34, yy); ctx.stroke();
+    ctx.fillStyle = css('--ink'); ctx.fillText(txt, lx + 42, yy);
+  });
+}
+
+// ---------------- Phase plane ----------------
+const pp = $('pp'), pctx = pp.getContext('2d');
+function drawPhase(now) {
+  const W = pp.clientWidth, Hh = pp.clientHeight, L = 44, R = 8, top = 6, B = 32, pw = W - L - R, ph = Hh - top - B;
+  pctx.clearRect(0, 0, W, Hh);
+  const { G, H } = sim, xr = padRange(sim.gr, 10), yr = padRange(sim.hr, 1);
+  const p = grid(pctx, L, top, pw, ph, xr, yr);
+  pctx.fillStyle = css('--ink'); pctx.font = '11.5px system-ui, sans-serif'; pctx.textAlign = 'center'; pctx.textBaseline = 'bottom';
+  pctx.fillText('glucose g', L + pw / 2, Hh - 1);
+  pctx.save(); pctx.translate(9, top + ph / 2); pctx.rotate(-Math.PI / 2); pctx.textBaseline = 'middle'; pctx.fillText('insulin h', 0, 0); pctx.restore();
+  pctx.save(); pctx.beginPath(); pctx.rect(L, top, pw, ph); pctx.clip();
+  pctx.strokeStyle = css('--grid'); pctx.lineWidth = 1.5; pctx.beginPath(); pctx.moveTo(p.X(G[0]), p.Y(H[0]));
+  for (let i = 1; i < G.length; i++) pctx.lineTo(p.X(G[i]), p.Y(H[i])); pctx.stroke();
+  pctx.strokeStyle = css('--accent'); pctx.lineWidth = 1.8; pctx.beginPath(); pctx.moveTo(p.X(G[0]), p.Y(H[0]));
+  for (let i = 1; i <= now.k; i++) pctx.lineTo(p.X(G[i]), p.Y(H[i]));
+  pctx.lineTo(p.X(now.g), p.Y(now.h)); pctx.stroke();
+  pctx.strokeStyle = css('--ok'); pctx.lineWidth = 2; pctx.beginPath(); pctx.arc(p.X(0), p.Y(0), 5, 0, 2 * Math.PI); pctx.stroke();
+  pctx.fillStyle = css('--ink'); pctx.beginPath(); pctx.arc(p.X(now.g), p.Y(now.h), 4, 0, 2 * Math.PI); pctx.fill();
+  pctx.restore();
+}
+
+// ---------------- Poles ----------------
+const pz = $('pz'), zctx = pz.getContext('2d');
+function drawPoles() {
+  const W = pz.clientWidth, Hh = pz.clientHeight, { poles, zeta } = analysis();
+  const m = Math.max(1e-3, ...poles.map(p => Math.max(Math.abs(p.re), Math.abs(p.im)))) * 1.3;
+  const cx = W * 0.86, cy = Hh / 2, sc = Math.min((W * 0.82) / m, (Hh / 2 - 10) / m);
+  zctx.clearRect(0, 0, W, Hh);
+  zctx.fillStyle = css('--lhp'); zctx.fillRect(0, 0, cx, Hh);
+  zctx.strokeStyle = css('--axis'); zctx.lineWidth = 1; zctx.beginPath();
+  zctx.moveTo(0, cy + 0.5); zctx.lineTo(W, cy + 0.5); zctx.moveTo(cx + 0.5, 0); zctx.lineTo(cx + 0.5, Hh); zctx.stroke();
+  zctx.font = '11px system-ui, sans-serif'; zctx.fillStyle = css('--muted');
+  zctx.textAlign = 'right'; zctx.textBaseline = 'bottom'; zctx.fillText('Re (1/h)', W - 3, cy - 2);
+  zctx.textAlign = 'left'; zctx.textBaseline = 'top'; zctx.fillText('Im', cx + 4, 2);
+  const tick = niceStep(m, 3); zctx.textAlign = 'center';
+  for (let v = -tick; -v <= m; v -= tick) {
+    const x = cx + v * sc; zctx.beginPath(); zctx.moveTo(x, cy - 3); zctx.lineTo(x, cy + 3); zctx.stroke(); zctx.fillText(fmt(v), x, cy + 5);
+  }
+  zctx.strokeStyle = zeta < 1 ? css('--warn') : css('--ok'); zctx.lineWidth = 2.4;
+  poles.forEach(p => { const x = cx + p.re * sc, y = cy - p.im * sc, r = 6;
+    zctx.beginPath(); zctx.moveTo(x - r, y - r); zctx.lineTo(x + r, y + r); zctx.moveTo(x + r, y - r); zctx.lineTo(x - r, y + r); zctx.stroke(); });
+}
+
+// ---------------- Text panels ----------------
+function updateInfo() {
+  const { A, B, C, D } = st, { a1, a0, wn, zeta, poles } = analysis();
+  $('vA').textContent = `${fmt(A)} /h`; $('vB').textContent = fmt(B); $('vC').textContent = fmt(C); $('vD').textContent = `${fmt(D)} /h`;
+  $('liveEq').textContent = `now:  g″ + ${fmt(a1)}·g′ + ${fmt(a0)}·g = 0`;
+  let lab, col;
+  if (!isFinite(zeta)) { lab = 'No restoring force'; col = css('--warn'); }
+  else if (zeta < 0.995) { lab = 'Underdamped: oscillates'; col = css('--warn'); }
+  else if (zeta <= 1.005) { lab = 'Critically damped'; col = css('--ok'); }
+  else { lab = 'Overdamped: no oscillation'; col = css('--ok'); }
+  $('badge').textContent = lab; $('badge').style.background = col;
+  $('sZ').textContent = isFinite(zeta) ? fmt(zeta) : '∞';
+  $('sWn').textContent = `${fmt(wn)} rad/h`;
+  $('sP').textContent = zeta < 0.995 ? `${fmt(2 * Math.PI / (wn * Math.sqrt(1 - zeta * zeta)))} h` : 'none';
+  const slow = Math.max(poles[0].re, poles[1].re);
+  $('sTs').textContent = slow < 0 ? `≈ ${fmt(4 / -slow)} h` : '—';
+  $('sPo').textContent = poles[0].im === 0 ? `${fmt(poles[0].re)}, ${fmt(poles[1].re)}` : `${fmt(poles[0].re)} ± ${fmt(Math.abs(poles[0].im))}j`;
+  $('vG0').textContent = fmt(st.g0); $('vH0').textContent = fmt(st.h0); $('vDur').textContent = `${st.dur} h`;
+}
+function drawAll() {
+  const now = nowValues();
+  drawMain(now); drawPhase(now);
+  $('vTime').textContent = `t = ${now.t.toFixed(1)} h`;
+}
+function rebuild() { simulate(); updateInfo(); drawPoles(); drawAll(); }
+
+// ---------------- Controls ----------------
+const setCoef = (k, v) => { st[k] = v; $('s' + k).value = Math.sqrt(v / MAX[k]); };
+['A', 'B', 'C', 'D'].forEach(k => {
+  $('s' + k).value = Math.sqrt(st[k] / MAX[k]);
+  $('s' + k).addEventListener('input', e => { st[k] = parseFloat((MAX[k] * e.target.value ** 2).toPrecision(3)); rebuild(); });
+});
+document.querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => {
+  const p = PRESETS[b.dataset.p]; Object.keys(p).forEach(k => setCoef(k, p[k]));
+  if (b.dataset.p === 'reset') {                      // also restore initial conditions
+    Object.assign(st, DEFAULTS);
+    $('sG0').value = st.g0; $('sH0').value = st.h0;
+  }
+  rebuild();
+}));
+const bindNum = (id, key) => $(id).addEventListener('input', e => { st[key] = +e.target.value; rebuild(); });
+bindNum('sG0', 'g0'); bindNum('sH0', 'h0'); bindNum('sDur', 'dur');
+$('ghost').addEventListener('change', e => { st.ghost = e.target.checked; drawAll(); });
+$('sTime').addEventListener('input', e => { st.frac = e.target.value / 1000; drawAll(); });
+$('speed').addEventListener('change', e => { st.speed = +e.target.value; });
+
+let playing = false, last = null, onFinish = null;
+function tick(ts) {
+  if (!playing) return;
+  if (last !== null) st.frac = Math.min(1, st.frac + (ts - last) / 1000 * st.speed / st.dur);
+  last = ts; $('sTime').value = Math.round(st.frac * 1000); drawAll();
+  if (st.frac >= 1) { setPlaying(false); if (onFinish) { const f = onFinish; onFinish = null; f(); } return; }
+  requestAnimationFrame(tick);
+}
+function setPlaying(on) {
+  playing = on; $('play').textContent = on ? 'Pause' : 'Play';
+  if (on) { if (st.frac >= 1) st.frac = 0; last = null; requestAnimationFrame(tick); }
+}
+$('play').addEventListener('click', () => { if (!recording) setPlaying(!playing); });
+
+let recording = false;
+$('rec').addEventListener('click', () => {
+  if (recording) return;
+  if (!cv.captureStream || !window.MediaRecorder) { $('recMsg').textContent = 'This browser cannot record canvas video.'; return; }
+  const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+  const type = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+  const rec = new MediaRecorder(cv.captureStream(60), type ? { mimeType: type, videoBitsPerSecond: 8e6 } : undefined);
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  rec.onstop = () => {
+    const blob = new Blob(chunks, { type: rec.mimeType || 'video/webm' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = (rec.mimeType || '').includes('mp4') ? 'Glucose.mp4' : 'Glucose.webm';
+    document.body.appendChild(a); a.click(); a.remove();
+    recording = false; $('rec').disabled = false; $('rec').textContent = '● Record video';
+  };
+  recording = true; $('rec').disabled = true; $('rec').textContent = 'Recording…';
+  st.frac = 0; drawAll(); rec.start();
+  onFinish = () => setTimeout(() => rec.stop(), 600);
+  setTimeout(() => setPlaying(true), 300);
+});
+
+function resizeAll() { fit(cv); fit(pp); fit(pz); drawPoles(); drawAll(); }
+window.addEventListener('resize', resizeAll);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { updateInfo(); resizeAll(); });
+simulate(); updateInfo(); resizeAll();
+</script>
+</body>
+</html>
