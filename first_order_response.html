@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>First-Order Response</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --ink: #1b1b1b; --muted: #666;
+    --grid: #e4e4e0; --axis: #8a8a8a; --force: #d62728; --out: #111111;
+    --accent: #2a62c9; --border: #dcdcd8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131313; --panel: #1c1c1c; --ink: #ececec; --muted: #9a9a9a;
+      --grid: #2b2b2b; --axis: #777; --force: #ff5b52; --out: #f2f2f2;
+      --accent: #6d9dff; --border: #333;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 18px; margin: 0 0 2px; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+  .plot { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 8px 4px; }
+  .plot-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; padding: 0 8px; font-size: 13px; }
+  .legend { display: flex; gap: 16px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; vertical-align: middle;
+                         margin-right: 6px; border-top: 2px solid var(--c); }
+  .readout { color: var(--muted); font-variant-numeric: tabular-nums; }
+  canvas { width: 100%; height: 440px; display: block; }
+  .controls { display: grid; grid-template-columns: 70px 1fr 230px; gap: 10px 12px; align-items: center; margin-top: 14px; }
+  .controls label { text-align: right; color: var(--muted); font-size: 13px; }
+  .controls .val { font-variant-numeric: tabular-nums; font-size: 14px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .settings { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; margin-top: 16px;
+              padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+  .settings input, .settings select { font: inherit; color: var(--ink); background: var(--panel);
+              border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; }
+  .settings input[type=number] { width: 72px; }
+  button { font: inherit; font-weight: 600; color: #fff; background: var(--accent); border: 0;
+           border-radius: 6px; padding: 7px 18px; cursor: pointer; min-width: 84px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; justify-self: start; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .controls .seg label { text-align: center; color: var(--ink); font-size: 13px; padding: 6px 14px; cursor: pointer;
+                         border-right: 1px solid var(--border); background: var(--panel); }
+  .seg label:last-of-type { border-right: 0; }
+  .controls .seg input:checked + label { background: var(--accent); color: #fff; }
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .timecell { display: flex; align-items: center; gap: 12px; }
+  @media (max-width: 680px) {
+    .controls { grid-template-columns: 1fr; gap: 4px; }
+    .controls label { text-align: left; margin-top: 8px; }
+    canvas { height: 320px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">First-order system response</h1>
+  <p class="sub">Drag <b>Time</b> to show the response up to that time, or press Play. <b>Period</b> sets the forcing cycle (10 s to 0.1 s); <b>Cycles</b> sets how many cycles are simulated (5 to 500).</p>
+
+  <div class="plot">
+    <div class="plot-head">
+      <div class="legend">
+        <span style="--c: var(--force)">Forcing function</span>
+        <span style="--c: var(--out)">System output</span>
+      </div>
+      <div class="readout" id="readout"></div>
+    </div>
+    <canvas id="cv" aria-label="Forcing function and system output versus time"></canvas>
+  </div>
+
+  <div class="controls">
+    <label>Wave</label>
+    <div class="seg" id="waveSeg" role="radiogroup" aria-label="Forcing function">
+      <input type="radio" name="wave" id="w1" value="1" checked><label for="w1">Square</label>
+      <input type="radio" name="wave" id="w2" value="2"><label for="w2">Sine</label>
+      <input type="radio" name="wave" id="w3" value="3"><label for="w3">Sine sweep</label>
+    </div>
+    <span class="val" id="vWave"></span>
+
+    <label for="sTime">Time</label>
+    <input id="sTime" type="range" min="0" max="1000" step="1" value="1000">
+    <div class="timecell"><button id="play">Play</button><span class="val" id="vTime"></span></div>
+
+    <label for="sPer" id="lPer">Period</label>
+    <input id="sPer" type="range" min="-1" max="1" step="0.005" value="1">
+    <span class="val" id="vPer"></span>
+
+    <label for="sEnd" class="sweepOnly">End period</label>
+    <input id="sEnd" class="sweepOnly" type="range" min="-1" max="1" step="0.005" value="-1">
+    <span class="val sweepOnly" id="vEnd"></span>
+
+    <label for="sCyc">Cycles</label>
+    <input id="sCyc" type="range" min="0.69897" max="2.69897" step="0.001" value="0.69897">
+    <span class="val" id="vCyc"></span>
+  </div>
+
+  <div class="settings">
+    <span>Time constant τ (s) <input id="tau" type="number" min="0.01" step="0.1" value="1"></span>
+    <span id="dutyWrap">Duty cycle <input id="duty" type="number" min="0.05" max="0.95" step="0.05" value="0.5"></span>
+    <span>Play duration
+      <select id="playDur">
+        <option value="5">5 s</option><option value="10" selected>10 s</option>
+        <option value="20">20 s</option><option value="60">60 s</option>
+      </select></span>
+  </div>
+</main>
+
+<script>
+// ---------- Configuration (same meaning as the MATLAB script) ----------
+const MinF = 0;      // forcing function minimum
+const MaxF = 100;    // forcing function maximum
+const Y0   = MinF;   // initial system output
+
+const state = { type: 1, tau: 1, duty: 0.5, period: 10, endPeriod: 0.1, cycles: 5, frac: 1, playDur: 10 };
+let sim = { T: [], F: [], Y: [], Tend: 1 };
+
+// Sine sweep timing: frequency goes exponentially from 1/period to 1/endPeriod,
+// and the duration is chosen so the sweep contains exactly `cycles` cycles.
+function sweepParams() {
+  const f0 = 1 / state.period, k = state.period / state.endPeriod, lk = Math.log(k);
+  const flat = Math.abs(lk) < 1e-9;
+  const Tend = flat ? state.cycles / f0 : state.cycles * lk / (f0 * (k - 1));
+  return { f0, k, lk, flat, Tend };
+}
+
+// ---------- Simulation ----------
+// Square wave: y(t) = f + (y_prev - f) * exp(-(t - t_prev)/tau) with f constant between samples.
+// This is the same update as the MATLAB loop, and it is exact because samples land on every edge,
+// so no tiny dt is needed (500 cycles would otherwise be ~50 million samples).
+// Sine wave: exact analytic solution of tau*dy/dt + y = f(t).
+function simulate() {
+  const { type, tau, period: P, cycles: N } = state;
+  const duty = Math.min(0.99, Math.max(0.01, state.duty));
+  const n = Math.min(2000, Math.max(16, Math.round(40000 / N)));   // samples per cycle
+  const T = [], F = [], Y = [];
+
+  if (type === 1) {
+    let y = Y0, tPrev = 0;
+    const nH = Math.max(2, Math.round(n * duty)), nL = Math.max(2, n - nH);
+    const seg = (tStart, len, level, m) => {
+      for (let j = 1; j <= m; j++) {
+        const t = tStart + len * j / m;
+        y = level + (y - level) * Math.exp(-(t - tPrev) / tau);
+        tPrev = t;
+        T.push(t); F.push(level); Y.push(y);
+      }
+    };
+    for (let c = 0; c < N; c++) {
+      const t0 = c * P, tOff = t0 + duty * P;
+      T.push(t0); F.push(MaxF); Y.push(y);            // rising edge (f starts high, as in MATLAB)
+      seg(t0, duty * P, MaxF, nH);
+      T.push(tOff); F.push(MinF); Y.push(y);          // falling edge
+      seg(tOff, (1 - duty) * P, MinF, nL);
+    }
+  } else if (type === 3) {
+    // Sine sweep: n samples per cycle (uniform in phase), first-order-hold update
+    // y1 = u1 + (y0 - u0)e^(-h/tau) - (u1 - u0)(tau/h)(1 - e^(-h/tau)), exact for a linear input between samples.
+    const M = (MinF + MaxF) / 2, R = (MaxF - MinF) / 2;
+    const { f0, lk, flat, Tend } = sweepParams();
+    let y = Y0, tPrev = 0, uPrev = M;
+    T.push(0); F.push(M); Y.push(Y0);
+    for (let i = 1, total = n * N; i <= total; i++) {
+      const cyc = i / n;                                          // cycles elapsed
+      const t = flat ? cyc / f0 : Tend * Math.log(1 + cyc * lk / (f0 * Tend)) / lk;
+      const u = M + R * Math.sin(2 * Math.PI * cyc);
+      const h = t - tPrev, e = Math.exp(-h / tau);
+      y = u + (y - uPrev) * e - (h > 0 ? (u - uPrev) * (tau / h) * (1 - e) : 0);
+      T.push(t); F.push(u); Y.push(y);
+      tPrev = t; uPrev = u;
+    }
+    sim = { T, F, Y, Tend };
+    return;
+  } else {
+    const M = (MinF + MaxF) / 2, R = (MaxF - MinF) / 2;   // f = M + R sin(wt)
+    const w = 2 * Math.PI / P, wt = w * tau, K = 1 / (1 + wt * wt);
+    const C = Y0 - M + R * K * wt;
+    const total = n * N;
+    for (let i = 0; i <= total; i++) {
+      const t = i * P / n;
+      T.push(t);
+      F.push(M + R * Math.sin(w * t));
+      Y.push(M + R * K * (Math.sin(w * t) - wt * Math.cos(w * t)) + C * Math.exp(-t / tau));
+    }
+  }
+  sim = { T, F, Y, Tend: P * N };
+}
+
+// ---------- Drawing ----------
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const niceStep = (range, target) => {
+  const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p;
+  return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
+};
+const fmt = v => String(parseFloat(v.toPrecision(6)));
+
+function lastIndexAtOrBefore(T, t) {
+  let lo = 0, hi = T.length - 1;
+  if (t >= T[hi]) return hi;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (T[mid] <= t) lo = mid; else hi = mid - 1; }
+  return lo;
+}
+
+function resize() {
+  const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d);
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+  draw();
+}
+
+function draw() {
+  const W = cv.clientWidth, H = cv.clientHeight;
+  const L = 62, Rm = 14, Tm = 10, B = 44, pw = W - L - Rm, ph = H - Tm - B;
+  const Tend = sim.Tend, ymin = MinF * 0.9, ymax = MaxF * 1.1;
+  const X = t => L + t / Tend * pw, Yp = v => Tm + (ymax - v) / (ymax - ymin) * ph;
+  const cGrid = css('--grid'), cAxis = css('--axis'), cInk = css('--ink');
+  ctx.clearRect(0, 0, W, H);
+  ctx.font = '12px system-ui, -apple-system, Segoe UI, sans-serif';
+
+  // grid + ticks
+  ctx.lineWidth = 1; ctx.fillStyle = cInk;
+  const xs = niceStep(Tend, Math.max(4, Math.round(pw / 110)));
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let i = 0; i * xs <= Tend * (1 + 1e-9); i++) {
+    const px = Math.round(X(i * xs)) + 0.5;
+    ctx.strokeStyle = cGrid; ctx.beginPath(); ctx.moveTo(px, Tm); ctx.lineTo(px, Tm + ph); ctx.stroke();
+    ctx.fillText(fmt(i * xs), px, Tm + ph + 6);
+  }
+  const ys = niceStep(ymax - ymin, 6);
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let v = Math.ceil(ymin / ys) * ys; v <= ymax; v += ys) {
+    const py = Math.round(Yp(v)) + 0.5;
+    ctx.strokeStyle = cGrid; ctx.beginPath(); ctx.moveTo(L, py); ctx.lineTo(L + pw, py); ctx.stroke();
+    ctx.fillText(fmt(v), L - 6, py);
+  }
+  ctx.strokeStyle = cAxis; ctx.strokeRect(L + 0.5, Tm + 0.5, pw, ph);
+
+  // axis titles
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillText('Time (s)', L + pw / 2, H - 2);
+  ctx.save(); ctx.translate(14, Tm + ph / 2); ctx.rotate(-Math.PI / 2);
+  ctx.textBaseline = 'middle'; ctx.fillText('Forcing Function', 0, 0); ctx.restore();
+
+  // curves up to current time
+  const { T, F, Y } = sim;
+  const tNow = state.frac * Tend;
+  const k = lastIndexAtOrBefore(T, tNow);
+  const a = k < T.length - 1 && T[k + 1] > T[k] ? (tNow - T[k]) / (T[k + 1] - T[k]) : 0;
+  const fNow = F[k] + (k < T.length - 1 ? a * (F[k + 1] - F[k]) : 0);
+  const yNow = Y[k] + (k < T.length - 1 ? a * (Y[k + 1] - Y[k]) : 0);
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(L, Tm, pw, ph); ctx.clip();
+  ctx.lineJoin = 'round';
+  const line = (arr, color, width, endVal) => {
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+    ctx.moveTo(X(T[0]), Yp(arr[0]));
+    for (let i = 1; i <= k; i++) ctx.lineTo(X(T[i]), Yp(arr[i]));
+    ctx.lineTo(X(tNow), Yp(endVal));
+    ctx.stroke();
+  };
+  line(F, css('--force'), 1.6, fNow);
+  line(Y, css('--out'), 1.2, yNow);
+  ctx.fillStyle = css('--out');
+  ctx.beginPath(); ctx.arc(X(tNow), Yp(yNow), 4, 0, 2 * Math.PI); ctx.fill();
+  ctx.restore();
+
+  let freqTxt = '';
+  if (state.type === 3) {
+    const { f0, k } = sweepParams();
+    freqTxt = `   freq = ${(f0 * Math.pow(k, tNow / Tend)).toPrecision(3)} Hz`;
+  }
+  document.getElementById('readout').textContent =
+    `t = ${tNow.toPrecision(4)} s   f = ${fNow.toFixed(1)}   y = ${yNow.toFixed(1)}${freqTxt}`;
+  document.getElementById('vTime').textContent = `t = ${tNow.toPrecision(4)} s`;
+}
+
+// ---------- Controls ----------
+const $ = id => document.getElementById(id);
+const sTime = $('sTime'), sPer = $('sPer'), sCyc = $('sCyc'), playBtn = $('play');
+
+function updateLabels() {
+  const Tend = sim.Tend, sweep = state.type === 3;
+  $('lPer').textContent = sweep ? 'Start period' : 'Period';
+  $('vPer').textContent = `${sweep ? 'Start' : 'Period'} = ${fmt(state.period)} s  (f = ${fmt(1 / state.period)} Hz)`;
+  $('vEnd').textContent = `End = ${fmt(state.endPeriod)} s  (f = ${fmt(1 / state.endPeriod)} Hz)`;
+  $('vCyc').textContent = `Cycles = ${state.cycles}  (total ${Tend.toPrecision(4).replace(/\.?0+$/, '')} s)`;
+  $('vWave').textContent = sweep ? 'Frequency sweeps start → end' : '';
+  $('title').textContent = sweep
+    ? `System Time Constant = ${fmt(state.tau)} s,  Sine sweep ${fmt(state.period)} s → ${fmt(state.endPeriod)} s,  Cycles = ${state.cycles}`
+    : `System Time Constant = ${fmt(state.tau)} s,  Forcing Period = ${fmt(state.period)} s,  Cycles = ${state.cycles}`;
+  $('dutyWrap').style.display = state.type === 1 ? '' : 'none';
+  document.querySelectorAll('.sweepOnly').forEach(el => el.style.display = sweep ? '' : 'none');
+}
+function rebuild() { simulate(); updateLabels(); draw(); }
+
+sTime.addEventListener('input', () => { state.frac = sTime.value / 1000; draw(); });
+sPer.addEventListener('input', () => {
+  state.period = parseFloat(Math.pow(10, +sPer.value).toPrecision(2));   // 0.1, 0.25, 1.3, 10 ...
+  rebuild();
+});
+sCyc.addEventListener('input', () => { state.cycles = Math.round(Math.pow(10, +sCyc.value)); rebuild(); });
+document.querySelectorAll('input[name=wave]').forEach(r =>
+  r.addEventListener('change', e => { state.type = +e.target.value; rebuild(); }));
+$('sEnd').addEventListener('input', () => {
+  state.endPeriod = parseFloat(Math.pow(10, +$('sEnd').value).toPrecision(2));
+  rebuild();
+});
+$('tau').addEventListener('input', e => { const v = +e.target.value; if (v > 0) { state.tau = v; rebuild(); } });
+$('duty').addEventListener('input', e => {
+  const v = +e.target.value; if (v > 0 && v < 1) { state.duty = v; rebuild(); }
+});
+$('playDur').addEventListener('change', e => { state.playDur = +e.target.value; });
+
+// Play / Pause
+let playing = false, lastTs = null;
+function step(ts) {
+  if (!playing) return;
+  if (lastTs !== null) state.frac = Math.min(1, state.frac + (ts - lastTs) / 1000 / state.playDur);
+  lastTs = ts;
+  sTime.value = Math.round(state.frac * 1000);
+  draw();
+  if (state.frac >= 1) { setPlaying(false); return; }
+  requestAnimationFrame(step);
+}
+function setPlaying(on) {
+  playing = on; playBtn.textContent = on ? 'Pause' : 'Play';
+  if (on) { if (state.frac >= 1) state.frac = 0; lastTs = null; requestAnimationFrame(step); }
+}
+playBtn.addEventListener('click', () => setPlaying(!playing));
+
+window.addEventListener('resize', resize);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+simulate(); updateLabels(); resize();
+</script>
+</body>
+</html>
