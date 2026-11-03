@@ -1,0 +1,659 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>System Response</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a control rail on the left (system → input → window), and on the right two stacked "scope" panels (impulse, pulse) with an s-plane map and the governing equations beneath. One column on phones. */
+:root{
+  --bg:#eef3f6; --panel:#ffffff; --ink:#14202b; --muted:#5a6977; --line:#d5dee6; --grid:#e6ecf1;
+  --imp:#0a7a84; --pul:#c0510b; --stp:#3550b0; --inp:#4b5a69;
+  --held1:#8195a8; --held2:#b08f6a; --held3:#9785bf;
+  --warn:#b3261e; --warnbg:#fbe9e7; --rhp:rgba(179,38,30,.06); --chip:#e3eef1; --chipInk:#0a5960;
+  --f-display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --f-body:'Source Sans 3','Segoe UI',system-ui,sans-serif;
+  --f-mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0e1419; --panel:#151d24; --ink:#e2e9ef; --muted:#93a2b1; --line:#2a3641; --grid:#1f2a33;
+  --imp:#3fc4cd; --pul:#f08b4c; --stp:#8fa4ff; --inp:#a9b6c3;
+  --held1:#6f8499; --held2:#a78a68; --held3:#8d7db8;
+  --warn:#ff8a80; --warnbg:#3a1d1b; --rhp:rgba(255,138,128,.07); --chip:#1c2c33; --chipInk:#8fe0e6;
+  color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --bg:#0e1419; --panel:#151d24; --ink:#e2e9ef; --muted:#93a2b1; --line:#2a3641; --grid:#1f2a33;
+  --imp:#3fc4cd; --pul:#f08b4c; --stp:#8fa4ff; --inp:#a9b6c3;
+  --held1:#6f8499; --held2:#a78a68; --held3:#8d7db8;
+  --warn:#ff8a80; --warnbg:#3a1d1b; --rhp:rgba(255,138,128,.07); --chip:#1c2c33; --chipInk:#8fe0e6;
+  color-scheme:dark; }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1280px;margin:0 auto;padding-block:20px 40px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;margin-bottom:18px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(24px,3.2vw,34px);letter-spacing:-.01em;margin:0;line-height:1.1;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;max-width:62ch}
+.tf-banner{font-family:var(--f-mono);font-size:14px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;overflow-x:auto;white-space:nowrap;max-width:100%}
+.tf-banner b{font-family:var(--f-display);font-weight:500;color:var(--muted);margin-right:6px}
+
+.app{display:grid;grid-template-columns:minmax(260px,330px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){.app{grid-template-columns:minmax(0,1fr)}}
+
+.rail{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:18px}
+@media (min-width:901px){.rail{position:sticky;top:calc(12px + env(safe-area-inset-top, 0px))}}
+.sec{display:flex;flex-direction:column;gap:10px}
+.sec h2{font-family:var(--f-display);font-weight:500;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{font:600 14px var(--f-body);background:transparent;color:var(--ink);border:0;padding:9px 4px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--imp);color:var(--panel)}
+.seg button:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--pul);outline-offset:2px}
+select,input[type=text]{font:14px var(--f-mono);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 8px;width:100%}
+select{font-family:var(--f-body)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 78px;gap:4px 10px;align-items:center}
+.row label{grid-column:1/-1;display:flex;justify-content:space-between;gap:8px;font-size:14px}
+.row label .sym{font-family:var(--f-mono);font-weight:500}
+.row label .nm{color:var(--muted)}
+.row input[type=range]{width:100%;accent-color:var(--imp);margin:0}
+.row input[type=number]{font:13px var(--f-mono);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:100%;font-variant-numeric:tabular-nums}
+.row input:disabled{opacity:.5}
+.pulse-sec .row input[type=range]{accent-color:var(--pul)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{font:600 12px var(--f-body);background:var(--chip);color:var(--chipInk);border:0;border-radius:999px;padding:4px 10px;cursor:pointer}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:14px;cursor:pointer}
+.check input{margin-top:3px;accent-color:var(--pul)}
+.check small{display:block;color:var(--muted);font-size:12.5px}
+.err{color:var(--warn);font-size:13px;min-height:0}
+.hint{color:var(--muted);font-size:12.5px;margin:0}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:600 14px var(--f-body);border-radius:7px;padding:8px 12px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.btn.primary{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.held-list{display:flex;flex-direction:column;gap:4px;font:12px var(--f-mono);color:var(--muted)}
+.held-list span{display:flex;gap:8px;align-items:center}
+.held-list i{display:inline-block;width:18px;border-top:2px dashed}
+
+.main{display:flex;flex-direction:column;gap:18px;min-width:0}
+.scope{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 14px 10px;min-width:0}
+.scope-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 16px;margin-bottom:6px}
+.scope h3{font-family:var(--f-display);font-weight:700;font-size:18px;margin:0;display:flex;align-items:center;gap:8px}
+.scope h3 .sw{width:14px;height:3px;border-radius:2px;display:inline-block}
+.scope .eq{font:13px var(--f-mono);color:var(--muted)}
+.canvas-box{position:relative;height:300px}
+@media (max-width:520px){.canvas-box{height:250px}}
+canvas{display:block;width:100%;height:100%;touch-action:pan-y}
+.metrics{display:flex;flex-wrap:wrap;gap:6px 20px;padding-top:8px;border-top:1px solid var(--grid);margin-top:6px}
+.metrics div{display:flex;flex-direction:column}
+.metrics dt{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.metrics dd{margin:0;font:500 14px var(--f-mono);font-variant-numeric:tabular-nums}
+.banner{display:none;background:var(--warnbg);color:var(--warn);border-radius:8px;padding:8px 12px;font-size:14px}
+.banner.on{display:block}
+
+.lower{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:18px}
+@media (max-width:760px){.lower{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}
+.panel h3{font-family:var(--f-display);font-weight:700;font-size:16px;margin:0 0 8px}
+.pz-box{height:240px;position:relative}
+.poles{font:12.5px var(--f-mono);color:var(--muted);margin-top:8px;overflow-wrap:anywhere}
+.math{display:flex;flex-direction:column;gap:10px}
+.math .ln{font-family:var(--f-mono);font-size:13.5px;overflow-x:auto;white-space:nowrap;padding:6px 10px;background:var(--bg);border-radius:6px}
+.math .ln .lb{font-family:var(--f-body);font-size:12px;color:var(--muted);display:block;white-space:normal}
+.math p{margin:0;max-width:68ch;color:var(--muted);font-size:14px}
+.math em{font-style:italic;font-family:var(--f-mono)}
+.k-imp{color:var(--imp)} .k-pul{color:var(--pul)} .k-stp{color:var(--stp)}
+.pz-list{display:flex;flex-direction:column;gap:6px}
+.pzrow{display:grid;grid-template-columns:16px 64px minmax(0,1fr) 22px minmax(0,1fr) 26px;gap:6px;align-items:center;font-size:13px}
+.pzrow .pzk{font:700 15px var(--f-mono);text-align:center}
+.pzrow .pzk.poles{color:var(--imp)} .pzrow .pzk.zeros{color:var(--pul)}
+.pzrow .pzt{color:var(--muted)} .pzrow .pm{font:13px var(--f-mono);color:var(--muted);text-align:center}
+.pzrow input{font:13px var(--f-mono);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:100%;min-width:0}
+.pzrow .x{font:600 15px var(--f-body);background:transparent;border:1px solid var(--line);border-radius:6px;color:var(--muted);cursor:pointer;padding:1px 0}
+.addbtns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.addbtns button{font:600 12.5px var(--f-body);background:var(--chip);color:var(--chipInk);border:0;border-radius:6px;padding:6px 4px;cursor:pointer}
+.linkbtn{font:600 13px var(--f-body);background:transparent;color:var(--imp);border:1px dashed var(--imp);border-radius:7px;padding:7px 10px;cursor:pointer;text-align:left}
+#cvPZ.editable{touch-action:none}
+.pz-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 10px;margin-bottom:8px}
+.pz-head h3{margin:0}
+.pz-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pz-tools .check{font-size:13px;align-items:center}
+.pz-tools .check input{margin-top:0}
+.tbtn{font:600 12.5px var(--f-body);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 9px;cursor:pointer;min-width:28px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Instrumentation & Controls: System Response</h1>
+      <p class="sub">See how first-, second- and higher-order systems answer a unit impulse δ(t), a unit step 1(t), and a rectangular pulse of height A and width T. Hover a plot to read values; hold a trace to compare settings.</p>
+    </div>
+    <div class="tf-banner" id="tfBanner"></div>
+  </header>
+
+  <div class="app">
+    <aside class="rail" aria-label="Controls">
+      <div class="sec">
+        <h2>System order</h2>
+        <div class="seg" role="group" aria-label="System order">
+          <button id="ord1" data-ord="1" aria-pressed="true">1st</button>
+          <button id="ord2" data-ord="2" aria-pressed="false">2nd</button>
+          <button id="ordH" data-ord="H" aria-pressed="false">Higher</button>
+        </div>
+        <div id="hmodelBox" hidden>
+          <select id="hmodel" aria-label="Higher-order model">
+            <option value="npoles">n identical poles  K/(τs+1)ⁿ</option>
+            <option value="2p">2nd order + extra real pole</option>
+            <option value="pz">Poles &amp; zeros (drag on the s-plane)</option>
+            <option value="custom">Custom G(s) from coefficients</option>
+          </select>
+        </div>
+        <div id="sysParams" class="sec"></div>
+        <div id="zetaChips" class="chips" hidden>
+          <button data-z="0">Undamped</button><button data-z="0.2">ζ = 0.2</button><button data-z="0.707">ζ = 0.707</button><button data-z="1">Critical</button><button data-z="1.5">Overdamped</button>
+        </div>
+        <div id="customBox" class="sec" hidden>
+          <div><label class="hint" for="cNum">Numerator coefficients (highest power of s first)</label><input type="text" id="cNum" value="4"></div>
+          <div><label class="hint" for="cDen">Denominator coefficients</label><input type="text" id="cDen" value="1 2 5 4"></div>
+          <p class="hint">Example: <span style="font-family:var(--f-mono)">1 2 5 4</span> means s³ + 2s² + 5s + 4.</p>
+          <div class="err" id="cErr"></div>
+        </div>
+        <div id="pzBox" class="sec" hidden>
+          <div class="pz-list" id="pzList"></div>
+          <div class="addbtns"><button id="addRP">+ Real pole</button><button id="addCP">+ Pole pair</button><button id="addRZ">+ Real zero</button><button id="addCZ">+ Zero pair</button></div>
+          <p class="hint">Pairs are complex conjugates, re ± j·im. Drag any × or ○ on the s-plane map to move it. K sets the DC gain G(0) unless a pole or zero sits at the origin.</p>
+          <div class="err" id="pzErr"></div>
+        </div>
+        <button class="linkbtn" id="toPZ">Edit these poles &amp; zeros directly →</button>
+      </div>
+
+      <div class="sec pulse-sec">
+        <h2>Pulse input</h2>
+        <div id="pulseParams" class="sec"></div>
+        <label class="check"><input type="checkbox" id="unitArea"><span>Unit-area pulse (A = 1/T)<small>Shrink T and watch the pulse response converge to the impulse response.</small></span></label>
+      </div>
+
+      <div class="sec">
+        <h2>Time window</h2>
+        <label class="check"><input type="checkbox" id="autoWin" checked><span>Auto (fit until response settles)</span></label>
+        <div class="row" id="tmaxRow"><label for="tmax"><span class="sym">t<sub>max</sub></span><span class="nm">seconds</span></label>
+          <input type="range" id="tmaxR" min="0" max="1000" step="1" aria-label="Time window slider"><input type="number" id="tmax" step="any" value="10"></div>
+      </div>
+
+      <div class="sec">
+        <h2>Compare</h2>
+        <div class="btns"><button class="btn primary" id="holdBtn">Hold trace</button><button class="btn" id="clearBtn">Clear held</button></div>
+        <div class="held-list" id="heldList"><span>Hold up to three traces as dashed overlays.</span></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="banner" id="stab"></div>
+      <section class="scope">
+        <div class="scope-head"><h3><span class="sw" style="background:var(--imp)"></span>Impulse response g(t)</h3><span class="eq">input u(t) = δ(t)</span></div>
+        <div class="canvas-box"><canvas id="cvImp" aria-label="Impulse response plot"></canvas></div>
+        <dl class="metrics" id="mImp"></dl>
+      </section>
+      <section class="scope">
+        <div class="scope-head"><h3><span class="sw" style="background:var(--stp)"></span>Step response s(t)</h3><span class="eq">input u(t) = 1(t)</span></div>
+        <div class="canvas-box"><canvas id="cvStp" aria-label="Step response plot"></canvas></div>
+        <dl class="metrics" id="mStp"></dl>
+      </section>
+      <section class="scope">
+        <div class="scope-head"><h3><span class="sw" style="background:var(--pul)"></span>Pulse response y(t)</h3><span class="eq" id="pulseEq"></span></div>
+        <div class="canvas-box"><canvas id="cvPul" aria-label="Pulse response plot"></canvas></div>
+        <dl class="metrics" id="mPul"></dl>
+      </section>
+      <div class="lower">
+        <section class="panel">
+          <div class="pz-head"><h3>Pole–zero map (s-plane)</h3>
+            <div class="pz-tools">
+              <label class="check"><input type="checkbox" id="traceOn" checked>Trace paths</label>
+              <button class="tbtn" id="trClear">Clear trace</button>
+              <button class="tbtn" id="zOut" aria-label="Zoom out">−</button><button class="tbtn" id="zIn" aria-label="Zoom in">+</button><button class="tbtn" id="zFit">Fit</button>
+            </div></div>
+          <div class="pz-box"><canvas id="cvPZ" aria-label="Pole-zero map"></canvas></div>
+          <div class="poles" id="poleTxt"></div>
+          <p class="hint">The scale stays fixed while you change parameters, so the traced paths are comparable. Use − / + / Fit to rescale.</p>
+          <p class="hint" id="pzHint" hidden>Drag a pole (×) or zero (○) to move it.</p>
+        </section>
+        <section class="panel math" id="math"></section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const DEF={
+  K:{sym:'K',nm:'Gain',min:0.1,max:10,log:true,val:1},
+  tau:{sym:'τ',nm:'Time constant, s',min:0.05,max:20,log:true,val:1},
+  wn:{sym:'ω<sub>n</sub>',nm:'Natural freq., rad/s',min:0.1,max:50,log:true,val:2},
+  zeta:{sym:'ζ',nm:'Damping ratio',min:0,max:2,log:false,step:0.005,val:0.3},
+  n:{sym:'n',nm:'Number of poles',min:1,max:10,int:true,val:3},
+  p3:{sym:'p',nm:'Extra pole at −p, rad/s',min:0.05,max:50,log:true,val:5},
+  A:{sym:'A',nm:'Amplitude',min:0.05,max:200,log:true,val:1},
+  T:{sym:'T',nm:'Width, s',min:0.01,max:20,log:true,val:1}
+};
+const SHOW={'1':['K','tau'],'2':['K','wn','zeta'],'H:npoles':['K','tau','n'],'H:2p':['K','wn','zeta','p3'],'H:custom':[],'H:pz':['K']};
+const st={ord:'1',hm:'npoles',held:[],hover:{imp:null,stp:null,pul:null},drag:null,pzView:null,pzM:null,trail:{poles:{live:[],dead:[]},zeros:{live:[],dead:[]}},
+  pz:{poles:[{kind:'c',re:-1,im:2},{kind:'r',re:-3,im:0}],zeros:[{kind:'r',re:-2,im:0}]}};
+const TMAX={min:0.05,max:2000,log:true};
+
+/* ---------- formatting ---------- */
+function fmt(v){ if(!isFinite(v)) return '—'; if(v===0) return '0'; const a=Math.abs(v);
+  if(a>=1e4||a<1e-3) return v.toExponential(2).replace('e+','e');
+  return String(Number(v.toPrecision(3))); }
+const toS=(d,v)=>d.log?1000*Math.log(v/d.min)/Math.log(d.max/d.min):v;
+const fromS=(d,s)=>d.log?d.min*Math.pow(d.max/d.min,s/1000):(d.int?Math.round(s):Number(s));
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+
+/* ---------- build controls ---------- */
+function makeRow(key,host){
+  const d=DEF[key]; const r=document.createElement('div'); r.className='row'; r.dataset.key=key;
+  r.innerHTML=`<label for="n_${key}"><span class="sym">${d.sym}</span><span class="nm">${d.nm}</span></label>
+   <input type="range" id="r_${key}" aria-label="${d.nm}"><input type="number" id="n_${key}" step="any">`;
+  host.appendChild(r);
+  const rg=r.querySelector('input[type=range]'), nb=r.querySelector('input[type=number]');
+  if(d.log){rg.min=0;rg.max=1000;rg.step=1}else{rg.min=d.min;rg.max=d.max;rg.step=d.int?1:(d.step||0.01)}
+  d.rg=rg; d.nb=nb; setVal(key,d.val,false);
+  rg.addEventListener('input',()=>{d.val=fromS(d,Number(rg.value)); nb.value=fmt(d.val); onParam(key)});
+  nb.addEventListener('change',()=>{let v=parseFloat(nb.value); if(!isFinite(v)) v=d.val; setVal(key,v,false); onParam(key)});
+}
+function setVal(key,v,fire){const d=DEF[key]; v=clamp(d.int?Math.round(v):v,d.min,d.max); d.val=v; if(d.rg){d.rg.value=toS(d,v); d.nb.value=fmt(v)} if(fire) update();}
+['K','tau','wn','zeta','n','p3'].forEach(k=>makeRow(k,$('sysParams')));
+['A','T'].forEach(k=>makeRow(k,$('pulseParams')));
+function onParam(key){ if(key==='T'&&$('unitArea').checked) setVal('A',1/DEF.T.val,false); update(); }
+
+function modeKey(){return st.ord==='H'?'H:'+st.hm:st.ord}
+function refreshVisibility(){
+  const show=SHOW[modeKey()];
+  $('sysParams').querySelectorAll('.row').forEach(r=>r.hidden=!show.includes(r.dataset.key));
+  $('hmodelBox').hidden=st.ord!=='H';
+  $('customBox').hidden=modeKey()!=='H:custom';
+  $('zetaChips').hidden=!show.includes('zeta');
+  const isPZ=modeKey()==='H:pz'; $('pzBox').hidden=!isPZ; $('toPZ').hidden=isPZ; $('pzHint').hidden=!isPZ;
+  $('cvPZ').classList.toggle('editable',isPZ); if(isPZ) renderPZList();
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.ord===st.ord)));
+}
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{if(st.ord!==b.dataset.ord){st.ord=b.dataset.ord;st.trail={poles:{live:[],dead:[]},zeros:{live:[],dead:[]}}}refreshVisibility();update()}));
+$('hmodel').addEventListener('change',e=>{st.hm=e.target.value;st.trail={poles:{live:[],dead:[]},zeros:{live:[],dead:[]}};refreshVisibility();update()});
+$('zetaChips').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>setVal('zeta',Number(b.dataset.z),true)));
+['cNum','cDen'].forEach(id=>$(id).addEventListener('input',update));
+$('unitArea').addEventListener('change',()=>{const on=$('unitArea').checked; DEF.A.rg.disabled=on; DEF.A.nb.disabled=on; if(on) setVal('A',1/DEF.T.val,false); update();});
+// time window
+const tmR=$('tmaxR'), tmN=$('tmax'); let tmaxVal=10;
+function setTmax(v){tmaxVal=clamp(v,TMAX.min,TMAX.max); tmR.value=toS(TMAX,tmaxVal); tmN.value=fmt(tmaxVal)}
+setTmax(10);
+tmR.addEventListener('input',()=>{tmaxVal=fromS(TMAX,Number(tmR.value)); tmN.value=fmt(tmaxVal); $('autoWin').checked=false; update()});
+tmN.addEventListener('change',()=>{const v=parseFloat(tmN.value); if(isFinite(v)) setTmax(v); $('autoWin').checked=false; update()});
+$('autoWin').addEventListener('change',update);
+
+/* ---------- polynomials & roots ---------- */
+const pmul=(a,b)=>{const r=new Array(a.length+b.length-1).fill(0); a.forEach((x,i)=>b.forEach((y,j)=>r[i+j]+=x*y)); return r};
+const strip=c=>{c=c.slice(); while(c.length>1&&Math.abs(c[0])<1e-13) c.shift(); return c};
+function roots(c){
+  c=strip(c); const n=c.length-1; if(n<1) return [];
+  const a=c.map(v=>v/c[0]);
+  if(n===1) return [{re:-a[1],im:0}];
+  if(n===2){const b=a[1],q=a[2],D=b*b-4*q; if(D>=0){const s=Math.sqrt(D);return[{re:(-b+s)/2,im:0},{re:(-b-s)/2,im:0}]} const s=Math.sqrt(-D); return [{re:-b/2,im:s/2},{re:-b/2,im:-s/2}]}
+  const R=1+Math.max(...a.slice(1).map(Math.abs));
+  let z=[]; for(let k=0;k<n;k++){const th=2*Math.PI*k/n+0.4; z.push([R*0.9*Math.cos(th),R*0.9*Math.sin(th)])}
+  for(let it=0;it<1500;it++){ let move=0;
+    for(let i=0;i<n;i++){ let pr=1,pi=0; // horner p(z_i)
+      let hr=1,hi=0; const [zr,zi]=z[i];
+      for(let k=1;k<=n;k++){const tr=hr*zr-hi*zi+a[k], ti=hr*zi+hi*zr; hr=tr; hi=ti}
+      for(let j=0;j<n;j++){ if(j===i) continue; const dr=zr-z[j][0], di=zi-z[j][1]; const tr=pr*dr-pi*di, ti=pr*di+pi*dr; pr=tr; pi=ti }
+      const den=pr*pr+pi*pi||1e-300; const qr=(hr*pr+hi*pi)/den, qi=(hi*pr-hr*pi)/den;
+      z[i]=[zr-qr,zi-qi]; move=Math.max(move,Math.hypot(qr,qi)) }
+    if(move<1e-13*R) break; }
+  return z.map(([r,i])=>({re:Math.abs(r)<1e-10*R?0:r, im:Math.abs(i)<1e-7*R?0:i}));
+}
+function parseCoeffs(s){const v=s.trim().split(/[\s,;]+/).filter(Boolean).map(Number); if(!v.length||v.some(x=>!isFinite(x))) throw 'Use numbers separated by spaces or commas.'; return v}
+
+/* ---------- system definition ---------- */
+function buildSystem(){
+  const K=DEF.K.val,tau=DEF.tau.val,wn=DEF.wn.val,z=DEF.zeta.val,n=DEF.n.val,p=DEF.p3.val;
+  const mk=modeKey(); let num,den,poles,zeros=[],mult=1;
+  const quadPoles=()=>roots([1,2*z*wn,wn*wn]);
+  if(mk==='1'){num=[K];den=[tau,1];poles=[{re:-1/tau,im:0}]}
+  else if(mk==='2'){num=[K*wn*wn];den=[1,2*z*wn,wn*wn];poles=quadPoles()}
+  else if(mk==='H:npoles'){num=[K];den=[1];for(let i=0;i<n;i++)den=pmul(den,[tau,1]);poles=[{re:-1/tau,im:0}];mult=n}
+  else if(mk==='H:2p'){num=[K*wn*wn*p];den=pmul([1,2*z*wn,wn*wn],[1,p]);poles=quadPoles().concat([{re:-p,im:0}])}
+  else if(mk==='H:pz'){
+    const fac=r=>r.kind==='c'?[1,-2*r.re,r.re*r.re+r.im*r.im]:[1,-r.re];
+    if(!st.pz.poles.length) throw 'Add at least one pole.';
+    den=[1]; st.pz.poles.forEach(r=>den=pmul(den,fac(r))); let nm=[1]; st.pz.zeros.forEach(r=>nm=pmul(nm,fac(r)));
+    if(nm.length>den.length) throw 'There are more zeros than poles, so G(s) is improper. Remove a zero or add a pole.';
+    const d0=den[den.length-1], n0=nm[nm.length-1];
+    const g=(Math.abs(d0)>1e-12&&Math.abs(n0)>1e-12)?K*d0/n0:K; num=nm.map(v=>v*g);
+    const ex=l=>l.flatMap(r=>r.kind==='c'?[{re:r.re,im:r.im},{re:r.re,im:-r.im}]:[{re:r.re,im:0}]);
+    poles=ex(st.pz.poles); zeros=ex(st.pz.zeros); }
+  else { num=strip(parseCoeffs($('cNum').value)); den=strip(parseCoeffs($('cDen').value));
+    if(den.length<2) throw 'Denominator needs degree 1 or higher.';
+    if(num.length>den.length) throw 'Numerator degree is higher than denominator degree, so G(s) is improper.';
+    if(den.length>13) throw 'Keep the order at 12 or below.';
+    poles=roots(den); zeros=(num.length>1&&num.some(v=>v!==0))?roots(num):[]; }
+  return {num,den,poles,zeros,mult,mk};
+}
+function toSS(num,den){
+  const n=den.length-1, a0=den[0], d=den.map(c=>c/a0); let b=num.map(c=>c/a0), D=0;
+  if(b.length===n+1){D=b[0]; b=b.map((c,i)=>c-D*d[i]).slice(1)}
+  while(b.length<n) b.unshift(0);
+  const C=b.slice().reverse();
+  const A=[...Array(n)].map(()=>new Array(n).fill(0));
+  for(let i=0;i<n-1;i++) A[i][i+1]=1;
+  for(let j=0;j<n;j++) A[n-1][j]=-d[n-j];
+  return {n,A,C,D};
+}
+/* ---------- exact zero-order-hold discretization ---------- */
+function mm(X,Y){const n=X.length,R=[...Array(n)].map(()=>new Array(n).fill(0)); for(let i=0;i<n;i++)for(let k=0;k<n;k++){const x=X[i][k]; if(x===0)continue; for(let j=0;j<n;j++)R[i][j]+=x*Y[k][j]} return R}
+function expm(M){
+  const n=M.length; let nrm=0; for(const r of M){nrm=Math.max(nrm,r.reduce((s,v)=>s+Math.abs(v),0))}
+  const s=Math.max(0,Math.ceil(Math.log2(nrm/0.5))); const sc=Math.pow(2,-s);
+  const A=M.map(r=>r.map(v=>v*sc)); const I=[...Array(n)].map((_,i)=>{const r=new Array(n).fill(0);r[i]=1;return r});
+  let E=I.map(r=>r.slice()), T=I.map(r=>r.slice());
+  for(let k=1;k<=16;k++){T=mm(T,A).map(r=>r.map(v=>v/k)); for(let i=0;i<n;i++)for(let j=0;j<n;j++)E[i][j]+=T[i][j]}
+  for(let i=0;i<s;i++) E=mm(E,E);
+  return E;
+}
+function disc(A,h){const n=A.length,M=[...Array(n+1)].map(()=>new Array(n+1).fill(0));
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++)M[i][j]=A[i][j]*h; M[n-1][n]=h;
+  const E=expm(M); return {Ad:E.slice(0,n).map(r=>r.slice(0,n)), Bd:E.slice(0,n).map(r=>r[n])}}
+const mv=(M,x)=>M.map(r=>r.reduce((s,v,j)=>s+v*x[j],0));
+const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
+
+function simulate(ss,kind,tEnd,N,Amp,T){
+  const h=tEnd/N,{Ad,Bd}=disc(ss.A,h),n=ss.n; let x=new Array(n).fill(0);
+  const t=new Float64Array(N+1),y=new Float64Array(N+1); let last=N;
+  if(kind==='imp'){x[n-1]=1;
+    for(let k=0;k<=N;k++){t[k]=k*h;y[k]=dot(ss.C,x); if(!isFinite(y[k])||Math.abs(y[k])>1e12){last=k-1;break} x=mv(Ad,x)}}
+  else for(let k=0;k<=N;k++){const tk=k*h;t[k]=tk; const u=tk<T?Amp:0; y[k]=dot(ss.C,x)+ss.D*u;
+    if(!isFinite(y[k])||Math.abs(y[k])>1e12){last=k-1;break}
+    if(k===N)break; const t1=tk+h;
+    if(t1<=T){x=mv(Ad,x).map((v,i)=>v+Bd[i]*Amp)}
+    else if(tk>=T){x=mv(Ad,x)}
+    else{const d1=T-tk,s1=disc(ss.A,d1),s2=disc(ss.A,h-d1); x=mv(s1.Ad,x).map((v,i)=>v+s1.Bd[i]*Amp); x=mv(s2.Ad,x)}}
+  return {t:t.slice(0,last+1),y:y.slice(0,last+1)};
+}
+function settleTime(r,frac){let pk=0;for(const v of r.y)pk=Math.max(pk,Math.abs(v)); if(pk===0)return r.t[r.t.length-1];
+  for(let k=r.y.length-1;k>=0;k--) if(Math.abs(r.y[k])>frac*pk) return r.t[Math.min(k+1,r.t.length-1)]; return r.t[1]}
+function autoWindow(ss,poles,kind,Amp,T){
+  const minSig=Math.min(...poles.map(p=>-p.re)); const ext=kind==='pul'?T:0;
+  const isS=kind==='stp', sk=isS?'pul':kind, sA=isS?1:Amp, sT=isS?Infinity:T;
+  if(minSig<1e-6){const maxIm=Math.max(0,...poles.map(p=>Math.abs(p.im)));
+    let base=maxIm>0?8*2*Math.PI/maxIm:10; if(minSig<-1e-6) base=Math.min(base,5/(-minSig)); return clamp(base+ext*1.2,0.05,2000)}
+  const tLong=Math.min(60/minSig+ext,1e5); const r=simulate(ss,sk,tLong,4000,sA,sT);
+  if(isS){const fin=r.y[r.y.length-1]; let pk=0; for(const v of r.y) pk=Math.max(pk,Math.abs(v));
+    if(Math.abs(fin)<1e-6*pk) return clamp(settleTime(r,0.01)*1.15,0.02,2000);
+    let k=r.y.length-1; while(k>0&&Math.abs(r.y[k]-fin)<=0.01*Math.abs(fin)) k--; return clamp(r.t[Math.min(k+1,r.t.length-1)]*1.3,0.02,2000)}
+  return clamp(Math.max(settleTime(r,0.01)*1.15,ext*1.25,0.02),0.02,2000);
+}
+
+/* ---------- drawing ---------- */
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let C={}; function readTheme(){['--ink','--muted','--line','--grid','--imp','--pul','--stp','--inp','--held1','--held2','--held3','--rhp','--panel','--warn'].forEach(k=>C[k]=css(k))}
+function nice(x){const e=Math.pow(10,Math.floor(Math.log10(x))),f=x/e; return (f<1.5?1:f<3?2:f<7?5:10)*e}
+function ticks(lo,hi,n){const s=nice((hi-lo)/n),out=[]; for(let v=Math.ceil(lo/s)*s;v<=hi+s*1e-9;v+=s) out.push(Math.abs(v)<s*1e-9?0:v); return out}
+function prep(cv){const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H); return {ctx,W,H}}
+const scopes={};
+function drawScope(id){
+  const o=scopes[id]; if(!o) return; const {ctx,W,H}=prep(o.cv);
+  const L=56,R=14,top=44,B=34,x0=L,x1=W-R,y0=top,y1=H-B, tMax=o.tMax;
+  let lo=0,hi=0; const consider=s=>{for(let k=0;k<s.t.length;k++){if(s.t[k]>tMax)break; const v=s.y[k]; if(v<lo)lo=v; if(v>hi)hi=v}};
+  consider(o.cur); o.held.forEach(h=>consider(h.s));
+  if(hi-lo<1e-12){hi=1;lo=-0.1} const pad=(hi-lo)*0.08; hi+=pad; if(lo<0)lo-=pad; else lo=Math.min(lo,-(hi-lo)*0.02);
+  const X=t=>x0+(t/tMax)*(x1-x0), Y=v=>y1-(v-lo)/(hi-lo)*(y1-y0);
+  ctx.font='11px "JetBrains Mono", ui-monospace, monospace'; ctx.lineWidth=1;
+  // grid
+  const yt=ticks(lo,hi,5), xt=ticks(0,tMax,Math.max(3,Math.floor((x1-x0)/80)));
+  ctx.strokeStyle=C['--grid']; ctx.fillStyle=C['--muted']; ctx.textAlign='right'; ctx.textBaseline='middle';
+  yt.forEach(v=>{const y=Math.round(Y(v))+.5; ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke(); ctx.fillText(fmt(v),x0-6,y)});
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  xt.forEach(v=>{const x=Math.round(X(v))+.5; ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke(); ctx.fillText(fmt(v),x,y1+6)});
+  ctx.textAlign='right'; ctx.fillText('t (s)',x1,y1+19);
+  // zero axis
+  ctx.strokeStyle=C['--muted']; ctx.globalAlpha=.6; ctx.beginPath(); const yz=Math.round(Y(0))+.5; ctx.moveTo(x0,yz);ctx.lineTo(x1,yz); ctx.moveTo(x0+.5,y0);ctx.lineTo(x0+.5,y1); ctx.stroke(); ctx.globalAlpha=1;
+  // input strip
+  const sb=34, sh=22; ctx.strokeStyle=C['--inp']; ctx.fillStyle=C['--inp']; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(x0,sb); ctx.lineTo(x1,sb); ctx.globalAlpha=.35; ctx.stroke(); ctx.globalAlpha=1;
+  ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.fillText('u(t)',x0-6,sb-sh/2);
+  if(id==='stp'){ctx.beginPath();ctx.moveTo(x0-4,sb);ctx.lineTo(x0+1,sb);ctx.lineTo(x0+1,sb-sh);ctx.lineTo(x1,sb-sh);ctx.stroke();
+    ctx.textAlign='left'; ctx.fillStyle=C['--ink']; ctx.fillText('1(t), unit step',x0+10,sb-sh/2+11)}
+  else if(id==='imp'){ctx.beginPath();ctx.moveTo(x0+1,sb);ctx.lineTo(x0+1,sb-sh);ctx.stroke(); ctx.beginPath();ctx.moveTo(x0+1,sb-sh-3);ctx.lineTo(x0-3,sb-sh+4);ctx.lineTo(x0+5,sb-sh+4);ctx.closePath();ctx.fill();
+    ctx.textAlign='left'; ctx.fillText('δ(t), area 1',x0+10,sb-sh/2)}
+  else{const xT=Math.min(X(o.T),x1); ctx.globalAlpha=.14; ctx.fillRect(x0,sb-sh,Math.max(1.5,xT-x0),sh); ctx.globalAlpha=1;
+    ctx.beginPath();ctx.moveTo(x0,sb);ctx.lineTo(x0,sb-sh);ctx.lineTo(xT,sb-sh);ctx.lineTo(xT,sb);ctx.stroke();
+    ctx.textAlign='left'; const lbl=`A = ${fmt(o.A)}, T = ${fmt(o.T)} s`; const lx=xT+8+ctx.measureText(lbl).width<x1?xT+8:x0+6; ctx.fillStyle=C['--ink']; ctx.fillText(lbl,lx,sb-sh/2)
+    // mark end of pulse on main plot
+    if(o.T<tMax){ctx.setLineDash([3,4]);ctx.strokeStyle=C['--inp'];ctx.globalAlpha=.5;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(Math.round(xT)+.5,y0);ctx.lineTo(Math.round(xT)+.5,y1);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1}}
+  // series
+  ctx.save(); ctx.beginPath(); ctx.rect(x0,y0-2,x1-x0,y1-y0+4); ctx.clip();
+  const line=(s,col,w,dash)=>{ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);ctx.beginPath();let started=false;
+    for(let k=0;k<s.t.length;k++){if(s.t[k]>tMax*1.001)break; const x=X(s.t[k]),y=Y(s.y[k]); if(!started){ctx.moveTo(x,y);started=true}else ctx.lineTo(x,y)} ctx.stroke();ctx.setLineDash([])};
+  o.held.forEach(h=>line(h.s,C[h.col],1.6,[6,4]));
+  line(o.cur,C[o.col],2.2);
+  ctx.restore();
+  // hover
+  const ht=st.hover[id];
+  if(ht!=null&&ht>=0&&ht<=tMax){const s=o.cur; let k=0; const h=s.t[1]-s.t[0]; k=Math.min(s.t.length-1,Math.round(ht/h)); const tv=s.t[k],yv=s.y[k];
+    const x=X(tv),y=Y(yv); ctx.strokeStyle=C['--muted'];ctx.lineWidth=1;ctx.globalAlpha=.7;ctx.beginPath();ctx.moveTo(Math.round(x)+.5,y0);ctx.lineTo(Math.round(x)+.5,y1);ctx.stroke();ctx.globalAlpha=1;
+    ctx.fillStyle=C[o.col];ctx.beginPath();ctx.arc(x,y,4,0,7);ctx.fill();
+    const txt=`t = ${fmt(tv)} s   ${({imp:'g',stp:'s',pul:'y'})[id]} = ${fmt(yv)}`; ctx.font='500 12px "JetBrains Mono", ui-monospace, monospace';
+    const tw=ctx.measureText(txt).width+14; const bx=x1-tw, by=y0+4; ctx.fillStyle=C['--panel']; ctx.globalAlpha=.92; ctx.fillRect(bx,by,tw,22); ctx.globalAlpha=1; ctx.strokeStyle=C['--line']; ctx.strokeRect(bx+.5,by+.5,tw-1,21);
+    ctx.fillStyle=C['--ink']; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(txt,bx+7,by+11)}
+}
+function fitM(sys){let m=0; const all=sys.poles.concat(sys.zeros);
+  ['poles','zeros'].forEach(k=>{const T=st.trail[k]; T.live.concat(T.dead).forEach(tr=>tr.forEach(p=>all.push(p)))});
+  all.forEach(p=>{m=Math.max(m,Math.abs(p.re),Math.abs(p.im))}); return nice(Math.max(m*1.25,0.5))}
+function expandP(list,mult){const out=[]; list.forEach(p=>{for(let j=0;j<mult;j++) out.push({re:p.re,im:p.im})}); return out}
+function recordTrail(sys){
+  [['poles',expandP(sys.poles,sys.mult)],['zeros',sys.zeros]].forEach(([k,cur])=>{
+    const T=st.trail[k];
+    if(T.live.length!==cur.length){ T.dead=T.dead.concat(T.live.filter(t=>t.length>1)); T.live=cur.map(p=>[p]); return }
+    const used=new Array(cur.length).fill(false);
+    T.live.forEach(tr=>{const q=tr[tr.length-1]; let bi=-1,bd=Infinity;
+      cur.forEach((p,i)=>{if(used[i])return; const d=Math.hypot(p.re-q.re,p.im-q.im); if(d<bd){bd=d;bi=i}});
+      used[bi]=true; const p=cur[bi]; if(bd>1e-9){tr.push(p); if(tr.length>4000) tr.splice(0,tr.length-4000)}});
+  });
+  if(st.trail.poles.dead.length>40) st.trail.poles.dead.splice(0,st.trail.poles.dead.length-40);
+  if(st.trail.zeros.dead.length>40) st.trail.zeros.dead.splice(0,st.trail.zeros.dead.length-40);
+}
+function clearTrail(){st.trail={poles:{live:[],dead:[]},zeros:{live:[],dead:[]}}; if(last) recordTrail(last.sys)}
+function drawPZ(sys){
+  const cv=$('cvPZ'),{ctx,W,H}=prep(cv);
+  if(st.pzM==null) st.pzM=fitM(sys); const m=st.pzM;
+  const pad=26, cx=W/2, cy=H/2, sc=Math.min((W-2*pad)/(2*m),(H-2*pad)/(2*m));
+  const xr=(cx-pad)/sc, yr=(cy-pad)/sc;
+  const X=v=>cx+v*sc, Y=v=>cy-v*sc; st.pzView={cx,cy,sc,m,X,Y};
+  ctx.fillStyle=C['--rhp']; ctx.fillRect(cx,0,W-cx,H);
+  ctx.font='10.5px "JetBrains Mono", ui-monospace, monospace'; ctx.fillStyle=C['--muted']; ctx.strokeStyle=C['--grid']; ctx.lineWidth=1;
+  const step=nice(m/2.5); ctx.textAlign='center'; ctx.textBaseline='top';
+  for(let v=-Math.floor(xr/step)*step; v<=xr+1e-9; v+=step){ if(Math.abs(v)<step*1e-6) continue; const x=Math.round(X(v))+.5; ctx.beginPath();ctx.moveTo(x,Y(yr));ctx.lineTo(x,Y(-yr));ctx.stroke(); ctx.fillText(fmt(v),x,cy+4)}
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  for(let v=-Math.floor(yr/step)*step; v<=yr+1e-9; v+=step){ if(Math.abs(v)<step*1e-6) continue; const y=Math.round(Y(v))+.5; ctx.beginPath();ctx.moveTo(X(-xr),y);ctx.lineTo(X(xr),y);ctx.stroke(); ctx.fillText(fmt(v),cx+4,y)}
+  ctx.strokeStyle=C['--muted']; ctx.beginPath(); ctx.moveTo(X(-xr),Math.round(cy)+.5);ctx.lineTo(X(xr),Math.round(cy)+.5);ctx.moveTo(Math.round(cx)+.5,Y(yr));ctx.lineTo(Math.round(cx)+.5,Y(-yr));ctx.stroke();
+  ctx.textBaseline='top'; ctx.textAlign='right'; ctx.fillText('Re',W-6,cy+16); ctx.textAlign='left'; ctx.fillText('Im (rad/s)',cx+5,4);
+  ctx.textAlign='right'; ctx.fillStyle=C['--warn']; ctx.globalAlpha=.8; ctx.fillText('unstable',W-6,4); ctx.globalAlpha=1;
+  // traced paths
+  ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,H); ctx.clip();
+  if($('traceOn').checked) [['poles','--imp'],['zeros','--pul']].forEach(([k,col])=>{const T=st.trail[k];
+    const path=(tr,alpha)=>{if(tr.length<2)return; ctx.strokeStyle=C[col]; ctx.globalAlpha=alpha; ctx.lineWidth=1.6; ctx.lineJoin='round'; ctx.beginPath();
+      tr.forEach((p,i)=>{const x=X(p.re),y=Y(p.im); i?ctx.lineTo(x,y):ctx.moveTo(x,y)}); ctx.stroke();
+      const s0=tr[0]; ctx.fillStyle=C[col]; ctx.beginPath(); ctx.arc(X(s0.re),Y(s0.im),2.5,0,7); ctx.fill()};
+    T.dead.forEach(tr=>path(tr,.22)); T.live.forEach(tr=>path(tr,.55)); ctx.globalAlpha=1});
+  ctx.restore();
+  // markers (clamped to the view, with an edge arrow when outside)
+  const place=(p)=>{const lx=xr*0.97, ly=yr*0.94; const out=Math.abs(p.re)>lx||Math.abs(p.im)>ly;
+    return {x:X(clamp(p.re,-lx,lx)),y:Y(clamp(p.im,-ly,ly)),out,dx:Math.sign(p.re)*(Math.abs(p.re)>lx),dy:-Math.sign(p.im)*(Math.abs(p.im)>ly)}};
+  const arrow=(q,col)=>{ctx.fillStyle=C[col]; const a=Math.atan2(q.dy,q.dx); ctx.beginPath(); ctx.moveTo(q.x+8*Math.cos(a),q.y+8*Math.sin(a)); ctx.lineTo(q.x+3*Math.cos(a+2.4),q.y+3*Math.sin(a+2.4)); ctx.lineTo(q.x+3*Math.cos(a-2.4),q.y+3*Math.sin(a-2.4)); ctx.closePath(); ctx.fill()};
+  ctx.lineWidth=2.2; ctx.strokeStyle=C['--imp'];
+  sys.poles.forEach(p=>{const q=place(p); if(q.out){arrow(q,'--imp');return} const r=5; ctx.beginPath();ctx.moveTo(q.x-r,q.y-r);ctx.lineTo(q.x+r,q.y+r);ctx.moveTo(q.x+r,q.y-r);ctx.lineTo(q.x-r,q.y+r);ctx.stroke()});
+  if(sys.mult>1){const q=place(sys.poles[0]); ctx.fillStyle=C['--ink'];ctx.textAlign='left';ctx.textBaseline='bottom';ctx.font='600 11px "JetBrains Mono", monospace';ctx.fillText('×'+sys.mult,q.x+7,q.y-4)}
+  ctx.strokeStyle=C['--pul']; ctx.lineWidth=2.2; sys.zeros.forEach(p=>{const q=place(p); if(q.out){arrow(q,'--pul');return} ctx.beginPath();ctx.arc(q.x,q.y,5,0,7);ctx.stroke()});
+  const outside=sys.poles.concat(sys.zeros).some(p=>place(p).out);
+  if(outside){ctx.fillStyle=C['--muted']; ctx.font='11px "JetBrains Mono", monospace'; ctx.textAlign='left'; ctx.textBaseline='bottom'; ctx.fillText('▸ off-scale: zoom out or Fit',6,H-4)}
+}
+/* ---------- text helpers ---------- */
+const sup=n=>n===1?'':`<sup>${n}</sup>`;
+function polyStr(c){c=strip(c);const n=c.length-1;let out='';
+  c.forEach((v,i)=>{if(v===0)return; const p=n-i, a=Math.abs(v), sgn=v<0?' − ':(out?' + ':'');
+    const coef=(a===1&&p>0)?'':fmt(a); out+=sgn+coef+(p>0?'s'+sup(p):'')});
+  return out||'0'}
+const pStr=p=>p.im===0?fmt(p.re):`${fmt(p.re)} ${p.im<0?'−':'+'} j${fmt(Math.abs(p.im))}`;
+function describe(sys){const d=DEF; const P=`A=${fmt(d.A.val)}, T=${fmt(d.T.val)}`;
+  switch(sys.mk){case '1':return `1st · K=${fmt(d.K.val)}, τ=${fmt(d.tau.val)} · ${P}`;
+  case '2':return `2nd · ωn=${fmt(d.wn.val)}, ζ=${fmt(d.zeta.val)} · ${P}`;
+  case 'H:npoles':return `n=${d.n.val} · τ=${fmt(d.tau.val)} · ${P}`;
+  case 'H:2p':return `2nd+pole · ζ=${fmt(d.zeta.val)}, p=${fmt(d.p3.val)} · ${P}`;
+  case 'H:pz':return `p/z · ${st.pz.poles.length} poles, ${st.pz.zeros.length} zeros · ${P}`;
+  default:return `custom · ${$('cDen').value.trim()} · ${P}`}}
+function mathHTML(sys){
+  const K=DEF.K.val,tau=DEF.tau.val,wn=DEF.wn.val,z=DEF.zeta.val,n=DEF.n.val,p=DEF.p3.val; const L=(lb,body)=>`<div class="ln"><span class="lb">${lb}</span>${body}</div>`;
+  let h='<h3>Governing equations</h3>';
+  if(sys.mk==='1'){
+    h+=L('Transfer function','G(s) = K / (τs + 1)');
+    h+=L('<span class="k-imp">Impulse response</span>','g(t) = (K/τ)·e<sup>−t/τ</sup>,  g(0⁺) = K/τ = '+fmt(K/tau));
+    h+=L('<span class="k-pul">Pulse response</span>','y(t) = AK(1 − e<sup>−t/τ</sup>),  0 ≤ t &lt; T<br>y(t) = AK(1 − e<sup>−T/τ</sup>)·e<sup>−(t−T)/τ</sup>,  t ≥ T');
+    h+=`<p>The impulse response jumps to K/τ and decays with time constant τ = ${fmt(tau)} s. When T ≫ τ the pulse output reaches AK before decaying; when T ≪ τ it barely rises, and it looks like A·T times the impulse response.</p>`;
+  } else if(sys.mk==='2'||sys.mk==='H:2p'){
+    const wd=wn*Math.sqrt(Math.max(0,1-z*z));
+    h+=L('Transfer function',sys.mk==='2'?'G(s) = Kω<sub>n</sub><sup>2</sup> / (s<sup>2</sup> + 2ζω<sub>n</sub>s + ω<sub>n</sub><sup>2</sup>)':'G(s) = Kω<sub>n</sub><sup>2</sup>p / [(s<sup>2</sup> + 2ζω<sub>n</sub>s + ω<sub>n</sub><sup>2</sup>)(s + p)]');
+    if(sys.mk==='2'){
+      if(z<1) h+=L(`<span class="k-imp">Impulse response</span> · ${z===0?'undamped':'underdamped'} (ζ &lt; 1), ω<sub>d</sub> = ω<sub>n</sub>√(1−ζ²) = ${fmt(wd)} rad/s`,'g(t) = (Kω<sub>n</sub>/√(1−ζ²))·e<sup>−ζω<sub>n</sub>t</sup>·sin(ω<sub>d</sub>t)');
+      else if(Math.abs(z-1)<1e-9) h+=L('<span class="k-imp">Impulse response</span> · critically damped (ζ = 1)','g(t) = Kω<sub>n</sub><sup>2</sup>·t·e<sup>−ω<sub>n</sub>t</sup>');
+      else { h+=L('<span class="k-imp">Impulse response</span> · overdamped (ζ &gt; 1), two real poles s₁, s₂','g(t) = Kω<sub>n</sub><sup>2</sup>·(e<sup>s₁t</sup> − e<sup>s₂t</sup>) / (s₁ − s₂)'); }
+      if(z<1&&z>0) h+=`<p>Percent overshoot of the step response would be ${fmt(100*Math.exp(-Math.PI*z/Math.sqrt(1-z*z)))} %. The impulse response is the derivative of that step response, so it crosses zero at each step-response peak, every π/ω<sub>d</sub> = ${fmt(Math.PI/wd)} s.</p>`;
+    } else {
+      const ratio=p/(z*wn||1e-9);
+      h+=`<p>The extra pole sits at −${fmt(p)} while the complex pair decays at ζω<sub>n</sub> = ${fmt(z*wn)}. Ratio p/(ζω<sub>n</sub>) = ${fmt(ratio)}. ${ratio>5?'Above about 5, the pair dominates and the response looks like a plain second-order system.':'Below about 5, the extra pole visibly slows the start of the response and lowers its peak.'}</p>`;
+    }
+    h+=L('<span class="k-pul">Pulse response</span> (any linear system)','y(t) = A·[ s(t) − s(t−T)·1(t−T) ],  where s(t) is the unit-step response');
+  } else if(sys.mk==='H:npoles'){
+    h+=L('Transfer function','G(s) = K / (τs + 1)'+sup(n));
+    h+=L('<span class="k-imp">Impulse response</span>',`g(t) = K·t${sup(n-1)}·e<sup>−t/τ</sup> / (τ${sup(n)}·(n−1)!)`);
+    h+=L('<span class="k-pul">Pulse response</span>','y(t) = A·[ s(t) − s(t−T)·1(t−T) ]');
+    h+=`<p>${n>1?`The impulse response peaks at t = (n−1)τ = ${fmt((n-1)*tau)} s.`:'With n = 1 this is the first-order case.'} Adding identical lags spreads the response out and delays it, much like a chain of mixing tanks or a sensor behind several thermal layers. The area under g(t) stays equal to K.</p>`;
+  } else if(sys.mk==='H:pz'){
+    const fz=r=>r.kind==='c'?`(s<sup>2</sup> ${r.re>0?'−':'+'} ${fmt(Math.abs(2*r.re))}s + ${fmt(r.re*r.re+r.im*r.im)})`:`(s ${r.re>0?'−':'+'} ${fmt(Math.abs(r.re))})`;
+    const g=sys.num[0];
+    h+=L('Factored form',`G(s) = ${fmt(g)} · ${st.pz.zeros.length?st.pz.zeros.map(fz).join(''):'1'} / ${st.pz.poles.map(fz).join('')}`);
+    h+=L('Expanded',`G(s) = (${polyStr(sys.num)}) / (${polyStr(sys.den)})`);
+    h+=L('<span class="k-imp">Impulse</span>, <span class="k-stp">step</span> and <span class="k-pul">pulse</span> are linked','g(t) = ds/dt,   y(t) = A·[ s(t) − s(t−T)·1(t−T) ]');
+    const rhpZ=sys.zeros.some(z=>z.re>1e-9);
+    h+=`<p>Poles set the modes: each pole at σ ± jω contributes e<sup>σt</sup> terms that oscillate at ω. Zeros set how much of each mode appears. A left-half-plane zero near the dominant poles speeds up the rise and adds overshoot. ${rhpZ?'<b>A zero is in the right half-plane</b>, so the step response first moves the wrong way (undershoot), the signature of a non-minimum-phase system.':'Drag a zero into the right half-plane to see the step response start in the wrong direction.'}</p>`;
+  } else {
+    h+=L('Transfer function',`G(s) = (${polyStr(sys.num)}) / (${polyStr(sys.den)})`);
+    h+=L('<span class="k-pul">Pulse response</span>','y(t) = A·[ s(t) − s(t−T)·1(t−T) ]');
+    h+='<p>Responses are computed by an exact zero-order-hold discretization of the state-space model, so stiff or fast poles stay accurate.</p>';
+  }
+  h+='<p>As T → 0 with A·T = 1 the pulse becomes δ(t), so the pulse response approaches g(t). Tick <b>Unit-area pulse</b> and drag T down to watch this happen.</p>';
+  return h;
+}
+function stepInfo(r,dc){
+  if(!isFinite(dc)) return [['Final value','— (not stable)'],['Rise 10–90%','—'],['Overshoot','—'],['Settling 2%','—']];
+  const n=r.y.length,a=Math.abs(dc),sg=dc<0?-1:1; if(a<1e-12) return [['Final value','0'],['Peak s',fmt(r.y[peak(r)])],['at t',fmt(r.t[peak(r)])+' s']];
+  let t10=NaN,t90=NaN,mx=-Infinity,mn=Infinity,ks=-1;
+  for(let k=0;k<n;k++){const v=r.y[k]*sg; if(isNaN(t10)&&v>=0.1*a)t10=r.t[k]; if(isNaN(t90)&&v>=0.9*a)t90=r.t[k]; if(v>mx)mx=v; if(v<mn)mn=v; if(Math.abs(r.y[k]-dc)>0.02*a)ks=k}
+  const os=Math.max(0,(mx-a)/a*100), out=[['Final value',fmt(dc)],['Rise 10–90%',isNaN(t90)?'beyond window':fmt(t90-t10)+' s'],['Overshoot',fmt(os)+' %'],['Settling 2%',ks>=n-1?'beyond window':fmt(r.t[ks+1]||0)+' s']];
+  if(mn<-0.01*a) out.push(['Undershoot',fmt(-mn/a*100)+' %']); return out}
+function metrics(el,items){el.innerHTML=items.map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}
+function peak(r){let k=0;for(let i=1;i<r.y.length;i++)if(Math.abs(r.y[i])>Math.abs(r.y[k]))k=i;return k}
+
+/* ---------- main update ---------- */
+const HELD_COLS=['--held1','--held2','--held3']; let last=null;
+function update(){
+  let sys; $('cErr').textContent='';
+  $('pzErr').textContent='';
+  try{ sys=buildSystem(); }catch(e){ $(modeKey()==='H:pz'?'pzErr':'cErr').textContent=String(e); return; }
+  const ss=toSS(sys.num,sys.den), Amp=DEF.A.val, T=DEF.T.val;
+  const maxRe=Math.max(...sys.poles.map(p=>p.re));
+  const sb=$('stab'); sb.className='banner'+(maxRe>-1e-9?' on':'');
+  sb.textContent=maxRe>1e-9?'Unstable: a pole lies in the right half-plane, so the response grows without bound. The window is cropped to show the growth.':(maxRe>-1e-9?'Marginally stable: a pole sits on the imaginary axis, so the response never decays.':'');
+  let tI,tP,tS;
+  if($('autoWin').checked){tI=autoWindow(ss,sys.poles,'imp',Amp,T); tS=autoWindow(ss,sys.poles,'stp',Amp,T); tP=autoWindow(ss,sys.poles,'pul',Amp,T); setTmax(Math.max(tI,tS,tP))} else {tI=tP=tS=tmaxVal}
+  const N=1600, ri=simulate(ss,'imp',tI,N,Amp,T), rp=simulate(ss,'pul',tP,N,Amp,T), rs=simulate(ss,'pul',tS,N,1,Infinity);
+  last={sys,ri,rp,rs,label:describe(sys)};
+  scopes.stp={cv:$('cvStp'),cur:rs,tMax:tS,col:'--stp',held:st.held.map(h=>({s:h.stp,col:h.col}))};
+  scopes.imp={cv:$('cvImp'),cur:ri,tMax:tI,col:'--imp',held:st.held.map(h=>({s:h.imp,col:h.col}))};
+  scopes.pul={cv:$('cvPul'),cur:rp,tMax:tP,col:'--pul',A:Amp,T,held:st.held.map(h=>({s:h.pul,col:h.col}))};
+  recordTrail(sys); drawScope('imp'); drawScope('stp'); drawScope('pul'); drawPZ(sys);
+  $('tfBanner').innerHTML='<b>G(s) =</b> ('+polyStr(sys.num)+') / ('+polyStr(sys.den)+')';
+  $('pulseEq').textContent=`u(t) = ${fmt(Amp)} for 0 ≤ t < ${fmt(T)} s, area A·T = ${fmt(Amp*T)}`;
+  // metrics
+  const ki=peak(ri), kp=peak(rp); let area=0; for(let i=1;i<ri.y.length;i++) area+=(ri.y[i]+ri.y[i-1])/2*(ri.t[i]-ri.t[i-1]);
+  const dc=sys.num[sys.num.length-1]/sys.den[sys.den.length-1];
+  const iT=Math.min(rp.y.length-1,Math.round(T/(rp.t[1]-rp.t[0])));
+  metrics($('mImp'),[['Peak g',fmt(ri.y[ki])],['at t',fmt(ri.t[ki])+' s'],['∫g dt (shown)',fmt(area)],['DC gain G(0)',maxRe<0?fmt(dc):'—']].concat(ss.D?[['Direct term','+'+fmt(ss.D)+'·δ(t) not drawn']]:[]));
+  metrics($('mStp'),stepInfo(rs,maxRe<0?dc:NaN));
+  metrics($('mPul'),[['Peak y',fmt(rp.y[kp])],['at t',fmt(rp.t[kp])+' s'],['y at t = T',T<=tP?fmt(rp.y[iT]):'beyond window'],['Ideal AK if T → ∞',maxRe<0?fmt(Amp*dc):'—']]);
+  $('poleTxt').innerHTML='Poles: '+(sys.mult>1?`${pStr(sys.poles[0])} (×${sys.mult})`:sys.poles.map(pStr).join(', '))+(sys.zeros.length?'<br>Zeros: '+sys.zeros.map(pStr).join(', '):'');
+  $('math').innerHTML=mathHTML(sys);
+}
+$('holdBtn').addEventListener('click',()=>{if(!last)return; const used=st.held.map(h=>h.col); const col=HELD_COLS.find(c=>!used.includes(c))||HELD_COLS[0];
+  if(st.held.length>=3) st.held.shift(); st.held.push({imp:last.ri,pul:last.rp,stp:last.rs,label:last.label,col}); renderHeld(); update()});
+$('clearBtn').addEventListener('click',()=>{st.held=[];renderHeld();update()});
+function renderHeld(){$('heldList').innerHTML=st.held.length?st.held.map(h=>`<span><i style="border-color:var(${h.col})"></i>${h.label}</span>`).join(''):'<span>Hold up to three traces as dashed overlays.</span>'}
+
+// hover
+['imp','stp','pul'].forEach(id=>{const cv=$(({imp:'cvImp',stp:'cvStp',pul:'cvPul'})[id]);
+  const mv_=e=>{const o=scopes[id]; if(!o)return; const r=cv.getBoundingClientRect(); const x=(e.touches?e.touches[0].clientX:e.clientX)-r.left; const x0=56,x1=r.width-14;
+    st.hover[id]=x<x0||x>x1?null:(x-x0)/(x1-x0)*o.tMax; drawScope(id)};
+  cv.addEventListener('pointermove',mv_); cv.addEventListener('pointerleave',()=>{st.hover[id]=null;drawScope(id)});});
+
+$('traceOn').addEventListener('change',()=>{if(last)drawPZ(last.sys)});
+$('trClear').addEventListener('click',()=>{clearTrail(); if(last)drawPZ(last.sys)});
+$('zIn').addEventListener('click',()=>{st.pzM=Math.max(1e-3,(st.pzM||1)/2); if(last)drawPZ(last.sys)});
+$('zOut').addEventListener('click',()=>{st.pzM=Math.min(1e5,(st.pzM||1)*2); if(last)drawPZ(last.sys)});
+$('zFit').addEventListener('click',()=>{if(last){st.pzM=fitM(last.sys); drawPZ(last.sys)}});
+/* ---------- pole-zero editor ---------- */
+function renderPZList(){const host=$('pzList'); host.innerHTML='';
+  [['poles','Pole','×'],['zeros','Zero','○']].forEach(([list,nm,mk])=>st.pz[list].forEach((p,i)=>{
+    const row=document.createElement('div'); row.className='pzrow'; const id=`pz_${list}_${i}`;
+    row.innerHTML=`<span class="pzk ${list}">${mk}</span><span class="pzt">${nm}${p.kind==='c'?' pair':''}</span>
+      <input type="number" step="any" id="${id}_re" aria-label="${nm} ${i+1} real part" value="${fmt(p.re)}" data-f="re">
+      ${p.kind==='c'?`<span class="pm">±j</span><input type="number" step="any" min="0" id="${id}_im" aria-label="${nm} ${i+1} imaginary part" value="${fmt(p.im)}" data-f="im">`:'<span></span><span></span>'}
+      <button class="x" aria-label="Remove ${nm.toLowerCase()} ${i+1}">×</button>`;
+    row.querySelectorAll('input').forEach(inp=>inp.addEventListener('change',()=>{const v=parseFloat(inp.value); if(!isFinite(v))return; p[inp.dataset.f]=inp.dataset.f==='im'?Math.abs(v):v; update()}));
+    row.querySelector('.x').addEventListener('click',()=>{st.pz[list].splice(i,1); renderPZList(); update()});
+    host.appendChild(row)}));
+  if(!st.pz.poles.length&&!st.pz.zeros.length) host.innerHTML='<p class="hint">No poles yet. Add one below.</p>';
+}
+const addPZ=(list,kind)=>{const L=st.pz[list], k=L.length;
+  const d=list==='poles'?(kind==='r'?{re:-(k+1),im:0}:{re:-1,im:1+k}):(kind==='r'?{re:-2-k,im:0}:{re:-0.5,im:2+k});
+  L.push(Object.assign({kind},d)); renderPZList(); update()};
+$('addRP').addEventListener('click',()=>addPZ('poles','r')); $('addCP').addEventListener('click',()=>addPZ('poles','c'));
+$('addRZ').addEventListener('click',()=>addPZ('zeros','r')); $('addCZ').addEventListener('click',()=>addPZ('zeros','c'));
+$('toPZ').addEventListener('click',()=>{let sys; try{sys=buildSystem()}catch(e){return}
+  const grp=(arr,mult)=>{const out=[]; arr.forEach(p=>{for(let j=0;j<mult;j++){ if(Math.abs(p.im)<1e-9) out.push({kind:'r',re:+p.re.toPrecision(4),im:0}); else if(p.im>0) out.push({kind:'c',re:+p.re.toPrecision(4),im:+p.im.toPrecision(4)})}}); return out};
+  st.pz={poles:grp(sys.poles,sys.mult),zeros:grp(sys.zeros,1)};
+  const dc=sys.num[sys.num.length-1]/sys.den[sys.den.length-1]; if(isFinite(dc)&&Math.abs(dc)>1e-12) setVal('K',Math.abs(dc),false);
+  st.ord='H'; st.hm='pz'; $('hmodel').value='pz'; refreshVisibility(); update()});
+const pzc=$('cvPZ'); let raf=0; const sched=()=>{if(!raf) raf=requestAnimationFrame(()=>{raf=0; update(); renderPZList()})};
+function pzPos(e){const r=pzc.getBoundingClientRect(); return [e.clientX-r.left,e.clientY-r.top]}
+function pzHit(e){ if(modeKey()!=='H:pz'||!st.pzView) return null; const [x,y]=pzPos(e), v=st.pzView; let best=null,bd=16;
+  ['poles','zeros'].forEach(list=>st.pz[list].forEach((p,i)=>{(p.kind==='c'?[p.im,-p.im]:[0]).forEach(im=>{const d=Math.hypot(v.X(p.re)-x,v.Y(im)-y); if(d<bd){bd=d;best={list,i}}})})); return best}
+pzc.addEventListener('pointerdown',e=>{const h=pzHit(e); if(!h) return; st.drag=h; try{pzc.setPointerCapture(e.pointerId)}catch(_){} pzc.style.cursor='grabbing'; e.preventDefault()});
+pzc.addEventListener('pointermove',e=>{ if(!st.drag){ pzc.style.cursor=pzHit(e)?'grab':'default'; return }
+  const [x,y]=pzPos(e), v=st.pzView, q=nice(v.m/100), rd=u=>Math.round(u/q)*q; const p=st.pz[st.drag.list][st.drag.i];
+  p.re=rd((x-v.cx)/v.sc); if(p.kind==='c') p.im=Math.abs(rd((v.cy-y)/v.sc)); sched()});
+const endDrag=()=>{ if(!st.drag) return; st.drag=null; pzc.style.cursor='default'; update(); renderPZList()};
+pzc.addEventListener('pointerup',endDrag); pzc.addEventListener('pointercancel',endDrag);
+
+// theme + resize
+readTheme();
+const redraw=()=>{readTheme(); if(last){drawScope('imp');drawScope('stp');drawScope('pul');drawPZ(last.sys)}};
+try{window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',redraw)}catch(e){}
+new MutationObserver(redraw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+new ResizeObserver(redraw).observe(document.querySelector('.main'));
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(redraw);
+
+refreshVisibility(); update();
+})();
+</script>
+
+</body></html>
